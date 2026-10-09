@@ -4,8 +4,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronDown,
+  LogOut,
+  Menu,
+  UserRound,
+  X,
+} from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 // ============================================
 // TWEMOJI CONFIGURATION
@@ -19,46 +26,14 @@ const TWEMOJI_BASE =
 // ============================================
 
 const categories = [
-  {
-    name: "চাল",
-    slug: "chal",
-    emoji: "🍚",
-  },
-  {
-    name: "ডাল",
-    slug: "dal",
-    emoji: "🫘",
-  },
-  {
-    name: "তেল",
-    slug: "tel",
-    emoji: "🫙",
-  },
-  {
-    name: "সবজি",
-    slug: "sobji",
-    emoji: "🥬",
-  },
-  {
-    name: "মাছ",
-    slug: "mach",
-    emoji: "🐟",
-  },
-  {
-    name: "মাংস",
-    slug: "mangsho",
-    emoji: "🍗",
-  },
-  {
-    name: "ডিম-দুধ",
-    slug: "dim-dudh",
-    emoji: "🥛",
-  },
-  {
-    name: "মসলা",
-    slug: "moshla",
-    emoji: "🌶️",
-  },
+  { name: "চাল", slug: "chal", emoji: "🍚" },
+  { name: "ডাল", slug: "dal", emoji: "🫘" },
+  { name: "তেল", slug: "tel", emoji: "🫙" },
+  { name: "সবজি", slug: "sobji", emoji: "🥬" },
+  { name: "মাছ", slug: "mach", emoji: "🐟" },
+  { name: "মাংস", slug: "mangsho", emoji: "🍗" },
+  { name: "ডিম-দুধ", slug: "dim-dudh", emoji: "🥛" },
+  { name: "মসলা", slug: "moshla", emoji: "🌶️" },
 ];
 
 // ============================================
@@ -70,14 +45,14 @@ function getTwemojiUrl(emoji: string): string {
     .map((character) =>
       character.codePointAt(0)!.toString(16)
     )
-    .filter((code) => code !== "fe0f")
+    .filter((value) => value !== "fe0f")
     .join("-");
 
   return `${TWEMOJI_BASE}/${code}.svg`;
 }
 
 // ============================================
-// CATEGORY ICON - TRANSPARENT SVG
+// CATEGORY ICON
 // ============================================
 
 function CategoryIcon({
@@ -118,16 +93,81 @@ function CategoryIcon({
 }
 
 // ============================================
+// PROFILE AVATAR
+// ============================================
+
+function ProfileAvatar({
+  name,
+  image,
+  size = 36,
+}: {
+  name: string;
+  image?: string | null;
+  size?: number;
+}) {
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [image]);
+
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#F0F4F1]"
+      style={{
+        width: size,
+        height: size,
+      }}
+    >
+      {image && !imageError ? (
+        <img
+          src={image}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <UserRound
+          size={Math.round(size * 0.55)}
+          className="text-[#64786A]"
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================
 // MAIN NAVBAR
 // ============================================
 
 export default function Navbar() {
   const pathname = usePathname();
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [banglaDate, setBanglaDate] = useState("");
+  const { data: session, isPending } =
+    authClient.useSession();
 
-  // Bangladesh date
+  const user = session?.user;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [banglaDate, setBanglaDate] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
+
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  const fullName =
+    user?.name?.trim() || "ব্যবহারকারী";
+
+  const firstName =
+    fullName.split(/\s+/)[0];
+
+  const email = user?.email || "";
+  const profileImage = user?.image || null;
+
+  // ============================================
+  // BANGLADESH DATE
+  // ============================================
+
   useEffect(() => {
     const date = new Intl.DateTimeFormat("bn-BD", {
       day: "numeric",
@@ -139,20 +179,103 @@ export default function Navbar() {
     setBanglaDate(date);
   }, []);
 
-  // Close mobile menu when route changes
+  // ============================================
+  // CLOSE MENUS WHEN ROUTE CHANGES
+  // ============================================
+
   useEffect(() => {
     setMenuOpen(false);
+    setProfileOpen(false);
   }, [pathname]);
 
+  // ============================================
+  // CLOSE PROFILE DROPDOWN ON OUTSIDE CLICK
+  // ============================================
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(
+          event.target as Node
+        )
+      ) {
+        setProfileOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleClickOutside
+    );
+
+    document.addEventListener(
+      "keydown",
+      handleEscape
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, []);
+
+  // ============================================
+  // SIGN OUT
+  // ============================================
+
+  async function handleSignOut() {
+    if (signingOut) return;
+
+    setSigningOut(true);
+
+    try {
+      const result = await authClient.signOut();
+
+      if (result.error) {
+        throw new Error(
+          result.error.message || "Sign out failed"
+        );
+      }
+
+      setProfileOpen(false);
+      setMenuOpen(false);
+
+      window.location.assign("/");
+    } catch (error) {
+      console.error("Sign out failed:", error);
+
+      alert(
+        "সাইন আউট করা যায়নি। আবার চেষ্টা করুন।"
+      );
+
+      setSigningOut(false);
+    }
+  }
+
   return (
-    <header className="w-full bg-white">
+    <header className="relative z-50 w-full bg-white">
       {/* =====================================
           FIRST ROW: LOGO AND AUTHENTICATION
       ===================================== */}
 
       <div className="border-b border-gray-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          {/* Website Logo */}
+          {/* WEBSITE LOGO */}
+
           <Link
             href="/"
             className="flex items-center gap-2.5"
@@ -178,41 +301,154 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Authentication Buttons */}
-          <div className="hidden items-center gap-4 md:flex">
-            <Link
-              href="/signin"
-              className="text-[13px] font-medium text-gray-700 transition hover:text-green-700"
-            >
-              সাইন ইন
-            </Link>
+          {/* =====================================
+              RIGHT SIDE: AUTH / PROFILE
+          ===================================== */}
 
-            <Link
-              href="/signup"
-              className="rounded-md bg-[#008b3d] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#006d30]"
-            >
-              সাইন আপ
-            </Link>
-          </div>
+          <div className="flex items-center gap-3">
+            {isPending ? (
+              <div className="h-9 w-28 animate-pulse rounded-lg bg-gray-100" />
+            ) : user ? (
+              /* =====================================
+                  LOGGED-IN PROFILE
+              ===================================== */
 
-          {/* Mobile Menu Button */}
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label={
-              menuOpen
-                ? "মেনু বন্ধ করুন"
-                : "মেনু খুলুন"
-            }
-            aria-expanded={menuOpen}
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-700 md:hidden"
-          >
-            {menuOpen ? (
-              <X size={20} />
+              <div
+                ref={profileRef}
+                className="relative"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProfileOpen(!profileOpen)
+                  }
+                  aria-expanded={profileOpen}
+                  aria-haspopup="menu"
+                  className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-[#F3F7F4]"
+                >
+                  <ProfileAvatar
+                    name={fullName}
+                    image={profileImage}
+                    size={36}
+                  />
+
+                  <span className="hidden max-w-[140px] truncate text-[13px] font-medium text-[#1C2B20] sm:block">
+                    {firstName}
+                  </span>
+
+                  <ChevronDown
+                    size={13}
+                    className={`text-gray-500 transition-transform ${
+                      profileOpen
+                        ? "rotate-180"
+                        : ""
+                    }`}
+                  />
+                </button>
+
+                {/* =====================================
+                    PROFILE DROPDOWN
+                ===================================== */}
+
+                {profileOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-[calc(100%+10px)] z-[100] w-[256px] rounded-2xl border border-[#DEE7DF] bg-white px-5 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.16)]"
+                  >
+                    {/* USER DETAILS */}
+
+                    <div className="mb-4">
+                      <p className="truncate text-[14px] font-semibold text-[#1C2B20]">
+                        {fullName}
+                      </p>
+
+                      <p className="mt-0.5 truncate text-[12px] text-[#657269]">
+                        {email}
+                      </p>
+                    </div>
+
+                    {/* MY PROFILE */}
+
+                    <Link
+                      href="/profile"
+                      role="menuitem"
+                      onClick={() =>
+                        setProfileOpen(false)
+                      }
+                      className="flex items-center gap-2 py-1 text-[13px] text-[#26352A] transition hover:text-[#008b3d]"
+                    >
+                      <UserRound
+                        size={16}
+                        className="text-[#6385A2]"
+                      />
+
+                      <span>আমার প্রোফাইল</span>
+                    </Link>
+
+                    {/* SIGN OUT */}
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleSignOut}
+                      disabled={signingOut}
+                      className="mt-3 flex items-center gap-2 py-1 text-[13px] text-[#F04444] transition hover:text-red-700 disabled:opacity-50"
+                    >
+                      <LogOut size={16} />
+
+                      <span>
+                        {signingOut
+                          ? "সাইন আউট হচ্ছে..."
+                          : "সাইন আউট"}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <Menu size={20} />
+              /* =====================================
+                  LOGGED-OUT BUTTONS
+              ===================================== */
+
+              <div className="hidden items-center gap-4 md:flex">
+                <Link
+                  href="/signin"
+                  className="text-[13px] font-medium text-gray-700 transition hover:text-green-700"
+                >
+                  সাইন ইন
+                </Link>
+
+                <Link
+                  href="/signup"
+                  className="rounded-md bg-[#008b3d] px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-[#006d30]"
+                >
+                  সাইন আপ
+                </Link>
+              </div>
             )}
-          </button>
+
+            {/* MOBILE MENU BUTTON */}
+
+            <button
+              type="button"
+              onClick={() =>
+                setMenuOpen(!menuOpen)
+              }
+              aria-label={
+                menuOpen
+                  ? "মেনু বন্ধ করুন"
+                  : "মেনু খুলুন"
+              }
+              aria-expanded={menuOpen}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-700 md:hidden"
+            >
+              {menuOpen ? (
+                <X size={20} />
+              ) : (
+                <Menu size={20} />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -237,7 +473,6 @@ export default function Navbar() {
                     : "text-[#27352c] hover:bg-green-50 hover:text-[#008b3d]"
                 }`}
               >
-                {/* Twemoji category icon */}
                 <CategoryIcon
                   name={category.name}
                   emoji={category.emoji}
@@ -279,7 +514,6 @@ export default function Navbar() {
                       : "bg-[#f0f5f1] text-gray-700 hover:bg-green-50"
                   }`}
                 >
-                  {/* Twemoji category icon */}
                   <CategoryIcon
                     name={category.name}
                     emoji={category.emoji}
@@ -291,28 +525,62 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Mobile Authentication */}
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-            <Link
-              href="/signin"
-              onClick={() =>
-                setMenuOpen(false)
-              }
-              className="rounded-md border border-[#008b3d] py-2.5 text-center text-sm font-medium text-[#008b3d]"
-            >
-              সাইন ইন
-            </Link>
+          {/* =====================================
+              MOBILE AUTHENTICATION
+          ===================================== */}
 
-            <Link
-              href="/signup"
-              onClick={() =>
-                setMenuOpen(false)
-              }
-              className="rounded-md bg-[#008b3d] py-2.5 text-center text-sm font-medium text-white"
-            >
-              সাইন আপ
-            </Link>
-          </div>
+          {!isPending && !user && (
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+              <Link
+                href="/signin"
+                onClick={() =>
+                  setMenuOpen(false)
+                }
+                className="rounded-md border border-[#008b3d] py-2.5 text-center text-sm font-medium text-[#008b3d]"
+              >
+                সাইন ইন
+              </Link>
+
+              <Link
+                href="/signup"
+                onClick={() =>
+                  setMenuOpen(false)
+                }
+                className="rounded-md bg-[#008b3d] py-2.5 text-center text-sm font-medium text-white"
+              >
+                সাইন আপ
+              </Link>
+            </div>
+          )}
+
+          {/* MOBILE PROFILE LINK */}
+
+          {!isPending && user && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <Link
+                href="/profile"
+                onClick={() =>
+                  setMenuOpen(false)
+                }
+                className="flex items-center gap-2 rounded-md bg-[#F0F5F1] px-3 py-3 text-sm font-medium text-[#25372B]"
+              >
+                <UserRound size={17} />
+                আমার প্রোফাইল
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-3 text-left text-sm font-medium text-red-500 disabled:opacity-50"
+              >
+                <LogOut size={17} />
+                {signingOut
+                  ? "সাইন আউট হচ্ছে..."
+                  : "সাইন আউট"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </header>

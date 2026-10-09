@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProductImage from "@/components/ui/ProductImage";
 
@@ -22,7 +22,7 @@ function ChangeBadge({
 }: {
   change: number | null;
 }) {
-  if (change === null) {
+  if (change === null || !Number.isFinite(change)) {
     return (
       <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
         তথ্য নেই
@@ -42,22 +42,19 @@ function ChangeBadge({
 
   return (
     <span
-      className={
-        "rounded-full px-3 py-1 text-xs font-semibold " +
-        (rising
+      className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${
+        rising
           ? "bg-red-50 text-red-600"
-          : "bg-green-50 text-green-700")
-      }
+          : "bg-green-50 text-green-700"
+      }`}
     >
-      {rising ? "▲" : "▼"}{" "}
-      {banglaPercent(change)}
+      {rising ? "▲" : "▼"} {banglaPercent(Math.abs(change))}
     </span>
   );
 }
 
 // ============================================
 // PRODUCT CARD
-// LOCAL PNG IMAGES
 // ============================================
 
 function ProductCard({
@@ -67,8 +64,8 @@ function ProductCard({
 }) {
   return (
     <Link
-      href={`/product/${product.id}`}
-      className="block rounded-[14px] border border-[#DEE7E0] bg-white p-4 transition-all hover:border-green-300 hover:shadow-md"
+      href={`/product/${encodeURIComponent(product.id)}`}
+      className="block rounded-[14px] border border-[#DEE7E0] bg-white p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-green-300 hover:shadow-md"
     >
       <div className="flex items-center gap-3">
         <ProductImage
@@ -77,7 +74,7 @@ function ProductCard({
           size={28}
         />
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] font-bold text-[#15251B]">
             {product.name}
           </h3>
@@ -89,7 +86,7 @@ function ProductCard({
       </div>
 
       <div className="mt-4 flex items-end justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] text-[#788679]">
             আজকের বাজার দর
           </p>
@@ -114,18 +111,20 @@ function ProductSection({
   subtitle,
   products,
   direction,
+  id,
 }: {
   title: string;
   subtitle?: string;
   products: BazarProduct[];
   direction?: "up" | "down";
+  id?: string;
 }) {
   if (products.length === 0) {
     return null;
   }
 
   return (
-    <section className="mb-10">
+    <section id={id} className="mb-10 scroll-mt-6">
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-lg font-bold text-[#15251B]">
           {direction === "up" && (
@@ -185,7 +184,7 @@ function Hero() {
 
         <a
           href="#all-products"
-          className="mt-6 inline-flex rounded-xl bg-[#16803D] px-6 py-3 text-sm font-semibold text-white hover:bg-[#106C32]"
+          className="mt-6 inline-flex rounded-xl bg-[#16803D] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#106C32]"
         >
           আজকের বাজার দর দেখুন →
         </a>
@@ -203,14 +202,51 @@ function Hero() {
 }
 
 // ============================================
+// LOADING SKELETON
+// ============================================
+
+function ProductSkeleton() {
+  return (
+    <div className="animate-pulse rounded-[14px] border border-[#DEE7E0] bg-white p-4">
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 rounded-xl bg-gray-100" />
+
+        <div className="flex-1">
+          <div className="h-4 w-32 rounded bg-gray-100" />
+          <div className="mt-2 h-3 w-20 rounded bg-gray-100" />
+        </div>
+      </div>
+
+      <div className="mt-5 h-3 w-24 rounded bg-gray-100" />
+
+      <div className="mt-2 flex items-center justify-between">
+        <div className="h-6 w-24 rounded bg-gray-100" />
+        <div className="h-6 w-16 rounded-full bg-gray-100" />
+      </div>
+    </div>
+  );
+}
+
+function LoadingProducts() {
+  return (
+    <section className="mb-10">
+      <div className="mb-4 h-6 w-40 animate-pulse rounded bg-gray-200" />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }, (_, index) => (
+          <ProductSkeleton key={index} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ============================================
 // MAIN HOMEPAGE
 // ============================================
 
 export default function HomePage() {
-  const [products, setProducts] = useState<
-    BazarProduct[]
-  >([]);
-
+  const [products, setProducts] = useState<BazarProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -221,15 +257,12 @@ export default function HomePage() {
       try {
         const result = await loadBazarProducts();
 
-        if (active) {
-          setProducts(result.products);
-          setError("");
-        }
+        if (!active) return;
+
+        setProducts(result.products);
+        setError("");
       } catch (err) {
-        console.error(
-          "Failed to load BazarDor products:",
-          err
-        );
+        console.error("Failed to load BazarDor products:", err);
 
         if (active) {
           setError("পণ্যের তথ্য লোড করা যায়নি।");
@@ -248,31 +281,29 @@ export default function HomePage() {
     };
   }, []);
 
-  // Top 6 products with highest price increases
-  const risingProducts = products
-    .filter(
-      (product) =>
-        product.change !== null &&
-        product.change > 0
-    )
-    .sort(
-      (a, b) =>
-        (b.change ?? 0) - (a.change ?? 0)
-    )
-    .slice(0, 6);
+  const risingProducts = useMemo(() => {
+    return products
+      .filter(
+        (product) =>
+          product.change !== null &&
+          Number.isFinite(product.change) &&
+          product.change > 0
+      )
+      .sort((a, b) => (b.change ?? 0) - (a.change ?? 0))
+      .slice(0, 6);
+  }, [products]);
 
-  // Top 6 products with highest price decreases
-  const fallingProducts = products
-    .filter(
-      (product) =>
-        product.change !== null &&
-        product.change < 0
-    )
-    .sort(
-      (a, b) =>
-        (a.change ?? 0) - (b.change ?? 0)
-    )
-    .slice(0, 6);
+  const fallingProducts = useMemo(() => {
+    return products
+      .filter(
+        (product) =>
+          product.change !== null &&
+          Number.isFinite(product.change) &&
+          product.change < 0
+      )
+      .sort((a, b) => (a.change ?? 0) - (b.change ?? 0))
+      .slice(0, 6);
+  }, [products]);
 
   return (
     <main className="min-h-screen bg-[#F1F6F2]">
@@ -280,12 +311,28 @@ export default function HomePage() {
         <Hero />
 
         {loading ? (
-          <div className="py-16 text-center text-gray-500">
-            পণ্যের তথ্য লোড হচ্ছে...
-          </div>
+          <LoadingProducts />
         ) : error ? (
-          <div className="rounded-xl bg-red-50 p-5 text-red-700">
-            {error}
+          <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-red-700">
+            <p>{error}</p>
+
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              আবার চেষ্টা করুন
+            </button>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white p-10 text-center">
+            <h2 className="text-lg font-bold text-[#15251B]">
+              কোনো পণ্য পাওয়া যায়নি
+            </h2>
+
+            <p className="mt-2 text-sm text-gray-500">
+              বর্তমানে বাজার দরের তথ্য পাওয়া যাচ্ছে না।
+            </p>
           </div>
         ) : (
           <>
@@ -301,15 +348,14 @@ export default function HomePage() {
               direction="down"
             />
 
-            <div id="all-products">
-              <ProductSection
-                title="সব পণ্য"
-                subtitle={`মোট ${new Intl.NumberFormat(
-                  "bn-BD"
-                ).format(products.length)}টি পণ্য দেখানো হচ্ছে`}
-                products={products}
-              />
-            </div>
+            <ProductSection
+              id="all-products"
+              title="সব পণ্য"
+              subtitle={`মোট ${new Intl.NumberFormat("bn-BD").format(
+                products.length
+              )}টি পণ্য দেখানো হচ্ছে`}
+              products={products}
+            />
           </>
         )}
       </div>
