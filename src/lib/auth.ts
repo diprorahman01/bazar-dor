@@ -118,7 +118,9 @@ export const auth = betterAuth({
   // ==========================================
 
   trustedOrigins: [
-    "http://localhost:3000",
-    baseURL,
-  ],
+  "http://localhost:3000",
+  "https://bazar-dor-five-phi.vercel.app",
+  "https://bazar-ijznw19ew-diprorahman01s-projects.vercel.app",
+  "https://bazar-bjetwtmw0-diprorahman01s-projects.vercel.app",
+],
 });
