@@ -7,34 +7,24 @@ import { db } from "@/lib/mongodb";
 // ENVIRONMENT VARIABLES
 // ============================================
 
-const isProduction = process.env.NODE_ENV === "production";
+const baseURL =
+  process.env.BETTER_AUTH_URL?.trim() ||
+  "http://localhost:3000";
 
-const baseURL = (
-  process.env.BETTER_AUTH_URL ||
-  (isProduction
-    ? "https://bazar-dor-phi.vercel.app"
-    : "http://localhost:3000")
-).trim().replace(/\/+$/, "");
+const authSecret =
+  process.env.BETTER_AUTH_SECRET?.trim();
 
-const authSecret = process.env.BETTER_AUTH_SECRET?.trim();
+const googleClientId =
+  process.env.GOOGLE_CLIENT_ID?.trim();
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+const googleClientSecret =
+  process.env.GOOGLE_CLIENT_SECRET?.trim();
 
-const githubClientId = process.env.GITHUB_CLIENT_ID?.trim();
-const githubClientSecret = process.env.GITHUB_CLIENT_SECRET?.trim();
+const githubClientId =
+  process.env.GITHUB_CLIENT_ID?.trim();
 
-// ============================================
-// VALIDATE BETTER AUTH SECRET
-// ============================================
-
-if (!authSecret || authSecret.length < 32) {
-  throw new Error(
-    "BETTER_AUTH_SECRET is missing or too short. " +
-    "Set a secure secret of at least 32 characters " +
-    "in your environment variables."
-  );
-}
+const githubClientSecret =
+  process.env.GITHUB_CLIENT_SECRET?.trim();
 
 // ============================================
 // VALIDATE OAUTH CREDENTIALS
@@ -43,12 +33,12 @@ if (!authSecret || authSecret.length < 32) {
 function hasValidCredentials(
   clientId: string | undefined,
   clientSecret: string | undefined
-): boolean {
+): clientId is string {
   return Boolean(
     clientId &&
-    clientSecret &&
-    !clientId.startsWith("YOUR_") &&
-    !clientSecret.startsWith("YOUR_")
+      clientSecret &&
+      !clientId.startsWith("YOUR_") &&
+      !clientSecret.startsWith("YOUR_")
   );
 }
 
@@ -69,19 +59,11 @@ const githubEnabled = hasValidCredentials(
 export const auth = betterAuth({
   appName: "BazarDor",
 
-  // ==========================================
-  // APPLICATION CONFIGURATION
-  // ==========================================
-
+  // Application URL
   baseURL,
 
+  // Session encryption/signing secret
   secret: authSecret,
-
-  trustedOrigins: [
-    "http://localhost:3000",
-    "https://bazar-dor-phi.vercel.app",
-    baseURL,
-  ],
 
   // ==========================================
   // MONGODB DATABASE
@@ -95,8 +77,11 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+
     requireEmailVerification: false,
+
     autoSignIn: false,
+
     minPasswordLength: 8,
   },
 
@@ -105,23 +90,35 @@ export const auth = betterAuth({
   // ==========================================
 
   socialProviders: {
-    ...(googleEnabled && googleClientId && googleClientSecret
+    ...(googleEnabled
       ? {
           google: {
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
+            clientId: googleClientId!,
+            clientSecret: googleClientSecret!,
           },
         }
       : {}),
 
-    ...(githubEnabled && githubClientId && githubClientSecret
+    ...(githubEnabled
       ? {
           github: {
-            clientId: githubClientId,
-            clientSecret: githubClientSecret,
+            clientId: githubClientId!,
+            clientSecret: githubClientSecret!,
+
+            // Request access to the user's
+            // basic profile and email.
             scope: ["read:user", "user:email"],
           },
         }
       : {}),
   },
+
+  // ==========================================
+  // TRUSTED ORIGINS
+  // ==========================================
+
+  trustedOrigins: [
+    "http://localhost:3000",
+    baseURL,
+  ],
 });

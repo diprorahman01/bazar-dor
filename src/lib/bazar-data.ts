@@ -9,8 +9,13 @@ export type BazarProduct = {
   demo: boolean;
 };
 
-const API_BASE =
+const DEFAULT_API_BASE =
   "https://api.api-store.workers.dev/api/bazardor";
+
+const API_BASE = (
+  process.env.NEXT_PUBLIC_BAZARDOR_API_URL ||
+  DEFAULT_API_BASE
+).replace(/\/+$/, "");
 
 type ApiProduct = {
   id?: string | number;
@@ -76,8 +81,7 @@ function normalizeProduct(
   let change: number | null = null;
 
   if (percentage !== null) {
-    const direction =
-      item.change?.dir?.toLowerCase();
+    const direction = item.change?.dir?.toLowerCase();
 
     if (direction === "up") {
       change = Math.abs(percentage);
@@ -103,14 +107,10 @@ function normalizeProduct(
       item.name ??
       "নাম পাওয়া যায়নি",
     unit: item.unit ?? "kg",
-
-    // Use EXACTLY what the API sends.
-    // No mapping, replacement, or invented emoji.
     icon:
       typeof item.image === "string"
         ? item.image
         : "",
-
     price,
     change,
     demo: false,
@@ -121,30 +121,47 @@ export async function loadBazarProducts(): Promise<{
   products: BazarProduct[];
   usingDemo: boolean;
 }> {
-  const response = await fetch(
-    `${API_BASE}/products`,
-    { cache: "no-store" }
-  );
+  try {
+    const url = `${API_BASE}/products`;
 
-  if (!response.ok) {
-    throw new Error(
-      `BazarDor API error: ${response.status}`
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `BazarDor API returned HTTP ${response.status}`
+      );
+    }
+
+    const data: unknown = await response.json();
+    const items = getProductsArray(data);
+
+    if (!items.length) {
+      throw new Error(
+        "BazarDor API returned no products."
+      );
+    }
+
+    return {
+      products: items.map(normalizeProduct),
+      usingDemo: false,
+    };
+  } catch (error) {
+    console.error(
+      "Unable to load BazarDor products:",
+      error
     );
+
+    return {
+      products: [],
+      usingDemo: false,
+    };
   }
-
-  const data: unknown = await response.json();
-  const items = getProductsArray(data);
-
-  if (!items.length) {
-    throw new Error(
-      "BazarDor API returned no products."
-    );
-  }
-
-  return {
-    products: items.map(normalizeProduct),
-    usingDemo: false,
-  };
 }
 
 export function banglaPrice(
