@@ -58,3 +58,28 @@ button {
     animation: none;
   }
 }
+
+
+@keyframes bazarTickerScroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.bazar-ticker-track {
+  animation: bazarTickerScroll 45s linear infinite;
+}
+
+.bazar-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bazar-ticker-track {
+    animation: none;
+  }
+}

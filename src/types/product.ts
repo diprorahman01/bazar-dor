@@ -8,5 +8,3 @@ export type Product = {
   price: number | null;
   change: number | null;
 };
-
-export type PriceDirection = "up" | "down" | "flat";

@@ -7,83 +7,119 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 
+// ============================================
+// TWEMOJI CONFIGURATION
+// ============================================
+
+const TWEMOJI_BASE =
+  "https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.2/assets/svg";
+
+// ============================================
+// CATEGORY DATA
+// ============================================
+
 const categories = [
   {
     name: "চাল",
     slug: "chal",
-    image: "/images/rice.png",
     emoji: "🍚",
   },
   {
     name: "ডাল",
     slug: "dal",
-    image: "/images/dal.png",
     emoji: "🫘",
   },
   {
     name: "তেল",
     slug: "tel",
-    image: "/images/oil.png",
-    emoji: "🛢️",
+    emoji: "🫙",
   },
   {
     name: "সবজি",
     slug: "sobji",
-    image: "/images/vegetable.png",
     emoji: "🥬",
   },
   {
     name: "মাছ",
     slug: "mach",
-    image: "/images/fish.png",
     emoji: "🐟",
   },
   {
     name: "মাংস",
     slug: "mangsho",
-    image: "/images/meat.png",
     emoji: "🍗",
   },
   {
     name: "ডিম-দুধ",
     slug: "dim-dudh",
-    image: "/images/milk.png",
     emoji: "🥛",
   },
   {
     name: "মসলা",
     slug: "moshla",
-    image: "/images/spice.png",
     emoji: "🌶️",
   },
 ];
 
+// ============================================
+// CONVERT EMOJI TO TWEMOJI SVG URL
+// ============================================
+
+function getTwemojiUrl(emoji: string): string {
+  const code = Array.from(emoji)
+    .map((character) =>
+      character.codePointAt(0)!.toString(16)
+    )
+    .filter((code) => code !== "fe0f")
+    .join("-");
+
+  return `${TWEMOJI_BASE}/${code}.svg`;
+}
+
+// ============================================
+// CATEGORY ICON - TRANSPARENT SVG
+// ============================================
+
 function CategoryIcon({
-  image,
   name,
   emoji,
 }: {
-  image: string;
   name: string;
   emoji: string;
 }) {
   const [error, setError] = useState(false);
 
+  useEffect(() => {
+    setError(false);
+  }, [emoji]);
+
   if (error) {
-    return <span className="text-sm">{emoji}</span>;
+    return (
+      <span
+        role="img"
+        aria-label={name}
+        className="inline-flex h-[17px] w-[17px] shrink-0 items-center justify-center bg-transparent text-[15px] leading-none"
+      >
+        {emoji}
+      </span>
+    );
   }
 
   return (
-    <Image
-      src={image}
+    <img
+      src={getTwemojiUrl(emoji)}
       alt={name}
       width={17}
       height={17}
-      className="h-[17px] w-[17px] object-contain"
+      className="h-[17px] w-[17px] shrink-0 bg-transparent object-contain"
       onError={() => setError(true)}
     />
   );
 }
+
+// ============================================
+// MAIN NAVBAR
+// ============================================
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -91,6 +127,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [banglaDate, setBanglaDate] = useState("");
 
+  // Bangladesh date
   useEffect(() => {
     const date = new Intl.DateTimeFormat("bn-BD", {
       day: "numeric",
@@ -102,17 +139,19 @@ export default function Navbar() {
     setBanglaDate(date);
   }, []);
 
+  // Close mobile menu when route changes
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
   return (
     <header className="w-full bg-white">
+      {/* =====================================
+          FIRST ROW: LOGO AND AUTHENTICATION
+      ===================================== */}
 
-      {/* First Row: Logo and Authentication */}
       <div className="border-b border-gray-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-
           {/* Website Logo */}
           <Link
             href="/"
@@ -161,24 +200,32 @@ export default function Navbar() {
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={
-              menuOpen ? "মেনু বন্ধ করুন" : "মেনু খুলুন"
+              menuOpen
+                ? "মেনু বন্ধ করুন"
+                : "মেনু খুলুন"
             }
             aria-expanded={menuOpen}
             className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-700 md:hidden"
           >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            {menuOpen ? (
+              <X size={20} />
+            ) : (
+              <Menu size={20} />
+            )}
           </button>
-
         </div>
       </div>
 
-      {/* Second Row: Category Navigation */}
+      {/* =====================================
+          SECOND ROW: CATEGORY NAVIGATION
+      ===================================== */}
+
       <nav className="hidden border-b border-gray-100 md:block">
         <div className="mx-auto flex max-w-6xl items-center justify-start gap-3 px-4 py-2 lg:gap-5">
-
           {categories.map((category) => {
             const active =
-              pathname === `/category/${category.slug}`;
+              pathname ===
+              `/category/${category.slug}`;
 
             return (
               <Link
@@ -190,8 +237,8 @@ export default function Navbar() {
                     : "text-[#27352c] hover:bg-green-50 hover:text-[#008b3d]"
                 }`}
               >
+                {/* Twemoji category icon */}
                 <CategoryIcon
-                  image={category.image}
                   name={category.name}
                   emoji={category.emoji}
                 />
@@ -200,14 +247,15 @@ export default function Navbar() {
               </Link>
             );
           })}
-
         </div>
       </nav>
 
-      {/* Mobile Navigation */}
+      {/* =====================================
+          MOBILE NAVIGATION
+      ===================================== */}
+
       {menuOpen && (
         <div className="border-t border-gray-100 bg-white px-4 py-4 md:hidden">
-
           <p className="mb-3 text-sm font-semibold text-gray-500">
             পণ্যের ক্যাটাগরি
           </p>
@@ -215,21 +263,24 @@ export default function Navbar() {
           <div className="grid grid-cols-2 gap-2">
             {categories.map((category) => {
               const active =
-                pathname === `/category/${category.slug}`;
+                pathname ===
+                `/category/${category.slug}`;
 
               return (
                 <Link
                   key={category.slug}
                   href={`/category/${category.slug}`}
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() =>
+                    setMenuOpen(false)
+                  }
                   className={`flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium ${
                     active
                       ? "bg-[#008b3d] text-white"
                       : "bg-[#f0f5f1] text-gray-700 hover:bg-green-50"
                   }`}
                 >
+                  {/* Twemoji category icon */}
                   <CategoryIcon
-                    image={category.image}
                     name={category.name}
                     emoji={category.emoji}
                   />
@@ -242,10 +293,11 @@ export default function Navbar() {
 
           {/* Mobile Authentication */}
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-
             <Link
               href="/signin"
-              onClick={() => setMenuOpen(false)}
+              onClick={() =>
+                setMenuOpen(false)
+              }
               className="rounded-md border border-[#008b3d] py-2.5 text-center text-sm font-medium text-[#008b3d]"
             >
               সাইন ইন
@@ -253,16 +305,16 @@ export default function Navbar() {
 
             <Link
               href="/signup"
-              onClick={() => setMenuOpen(false)}
+              onClick={() =>
+                setMenuOpen(false)
+              }
               className="rounded-md bg-[#008b3d] py-2.5 text-center text-sm font-medium text-white"
             >
               সাইন আপ
             </Link>
-
           </div>
         </div>
       )}
     </header>
   );
 }
-
