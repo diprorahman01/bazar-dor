@@ -1,0 +1,60 @@
+
+@import "tailwindcss";
+@plugin "daisyui";
+
+:root {
+  --background: #f0f5f1;
+  --foreground: #1f2937;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+a,
+button {
+  cursor: pointer;
+}
+
+/* Infinite moving price ticker */
+
+@keyframes bazar-scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.bazar-marquee {
+  animation: bazar-scroll 35s linear infinite;
+  will-change: transform;
+}
+
+.bazar-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bazar-marquee {
+    animation: none;
+  }
+}
