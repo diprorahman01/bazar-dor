@@ -4,12 +4,46 @@ import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { db } from "@/lib/mongodb";
 
 // ============================================
-// ENVIRONMENT VARIABLES
+// APPLICATION URL
 // ============================================
 
-const baseURL =
-  process.env.BETTER_AUTH_URL?.trim() ||
-  "http://localhost:3000";
+const PRODUCTION_URL =
+  "https://bazar-dor-five-phi.vercel.app";
+
+function normalizeURL(value: string | undefined): string {
+  const url = value?.trim().replace(/\/+$/, "");
+
+  if (!url) {
+    return process.env.NODE_ENV === "production"
+      ? PRODUCTION_URL
+      : "http://localhost:3000";
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (
+      parsed.protocol !== "https:" &&
+      parsed.protocol !== "http:"
+    ) {
+      throw new Error("Unsupported URL protocol");
+    }
+
+    return parsed.origin;
+  } catch {
+    throw new Error(
+      "Invalid BETTER_AUTH_URL. Use a complete URL, such as https://bazar-dor-five-phi.vercel.app"
+    );
+  }
+}
+
+const baseURL = normalizeURL(
+  process.env.BETTER_AUTH_URL
+);
+
+// ============================================
+// ENVIRONMENT VARIABLES
+// ============================================
 
 const authSecret =
   process.env.BETTER_AUTH_SECRET?.trim();
@@ -27,13 +61,13 @@ const githubClientSecret =
   process.env.GITHUB_CLIENT_SECRET?.trim();
 
 // ============================================
-// VALIDATE OAUTH CREDENTIALS
+// OAUTH CREDENTIAL VALIDATION
 // ============================================
 
 function hasValidCredentials(
   clientId: string | undefined,
   clientSecret: string | undefined
-): clientId is string {
+): boolean {
   return Boolean(
     clientId &&
       clientSecret &&
@@ -53,41 +87,38 @@ const githubEnabled = hasValidCredentials(
 );
 
 // ============================================
-// BETTER AUTH CONFIGURATION
+// TRUSTED ORIGINS
+// ============================================
+
+const trustedOrigins = [
+  "http://localhost:3000",
+  PRODUCTION_URL,
+  baseURL,
+
+  // Only preview deployments belonging to
+  // this specific Vercel project/team.
+  "https://*-diprorahman01s-projects.vercel.app",
+];
+
+// ============================================
+// BETTER AUTH
 // ============================================
 
 export const auth = betterAuth({
   appName: "BazarDor",
 
-  // Application URL
   baseURL,
 
-  // Session encryption/signing secret
   secret: authSecret,
-
-  // ==========================================
-  // MONGODB DATABASE
-  // ==========================================
 
   database: mongodbAdapter(db),
 
-  // ==========================================
-  // EMAIL AND PASSWORD AUTHENTICATION
-  // ==========================================
-
   emailAndPassword: {
     enabled: true,
-
     requireEmailVerification: false,
-
     autoSignIn: false,
-
     minPasswordLength: 8,
   },
-
-  // ==========================================
-  // GOOGLE AND GITHUB OAUTH
-  // ==========================================
 
   socialProviders: {
     ...(googleEnabled
@@ -104,23 +135,11 @@ export const auth = betterAuth({
           github: {
             clientId: githubClientId!,
             clientSecret: githubClientSecret!,
-
-            // Request access to the user's
-            // basic profile and email.
             scope: ["read:user", "user:email"],
           },
         }
       : {}),
   },
 
-  // ==========================================
-  // TRUSTED ORIGINS
-  // ==========================================
-
-  trustedOrigins: [
-  "http://localhost:3000",
-  "https://bazar-dor-five-phi.vercel.app",
-  "https://bazar-ijznw19ew-diprorahman01s-projects.vercel.app",
-  "https://bazar-bjetwtmw0-diprorahman01s-projects.vercel.app",
-],
+  trustedOrigins,
 });
