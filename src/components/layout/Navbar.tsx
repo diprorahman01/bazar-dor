@@ -12,18 +12,11 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { authClient } from "@/lib/auth-client";
-
-// ============================================
-// TWEMOJI CONFIGURATION
-// ============================================
 
 const TWEMOJI_BASE =
   "https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.2/assets/svg";
-
-// ============================================
-// CATEGORY DATA
-// ============================================
 
 const categories = [
   { name: "চাল", slug: "chal", emoji: "🍚" },
@@ -36,10 +29,6 @@ const categories = [
   { name: "মসলা", slug: "moshla", emoji: "🌶️" },
 ];
 
-// ============================================
-// CONVERT EMOJI TO TWEMOJI SVG URL
-// ============================================
-
 function getTwemojiUrl(emoji: string): string {
   const code = Array.from(emoji)
     .map((character) =>
@@ -51,9 +40,9 @@ function getTwemojiUrl(emoji: string): string {
   return `${TWEMOJI_BASE}/${code}.svg`;
 }
 
-// ============================================
+// ==========================================
 // CATEGORY ICON
-// ============================================
+// ==========================================
 
 function CategoryIcon({
   name,
@@ -62,18 +51,19 @@ function CategoryIcon({
   name: string;
   emoji: string;
 }) {
-  const [error, setError] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<
+    string | null
+  >(null);
 
-  useEffect(() => {
-    setError(false);
-  }, [emoji]);
+  const url = getTwemojiUrl(emoji);
+  const failed = failedUrl === url;
 
-  if (error) {
+  if (failed) {
     return (
       <span
         role="img"
         aria-label={name}
-        className="inline-flex h-[17px] w-[17px] shrink-0 items-center justify-center bg-transparent text-[15px] leading-none"
+        className="inline-flex h-[17px] w-[17px] shrink-0 items-center justify-center text-[15px] leading-none"
       >
         {emoji}
       </span>
@@ -81,20 +71,21 @@ function CategoryIcon({
   }
 
   return (
-    <img
-      src={getTwemojiUrl(emoji)}
+    <Image
+      src={url}
       alt={name}
       width={17}
       height={17}
-      className="h-[17px] w-[17px] shrink-0 bg-transparent object-contain"
-      onError={() => setError(true)}
+      unoptimized
+      className="h-[17px] w-[17px] shrink-0 object-contain"
+      onError={() => setFailedUrl(url)}
     />
   );
 }
 
-// ============================================
+// ==========================================
 // PROFILE AVATAR
-// ============================================
+// ==========================================
 
 function ProfileAvatar({
   name,
@@ -105,11 +96,12 @@ function ProfileAvatar({
   image?: string | null;
   size?: number;
 }) {
-  const [imageError, setImageError] = useState(false);
+  const [failedImage, setFailedImage] = useState<
+    string | null
+  >(null);
 
-  useEffect(() => {
-    setImageError(false);
-  }, [image]);
+  const showImage =
+    Boolean(image) && failedImage !== image;
 
   return (
     <div
@@ -119,12 +111,15 @@ function ProfileAvatar({
         height: size,
       }}
     >
-      {image && !imageError ? (
-        <img
+      {showImage && image ? (
+        <Image
           src={image}
           alt={name}
+          width={size}
+          height={size}
+          unoptimized
           className="h-full w-full object-cover"
-          onError={() => setImageError(true)}
+          onError={() => setFailedImage(image)}
         />
       ) : (
         <UserRound
@@ -136,9 +131,22 @@ function ProfileAvatar({
   );
 }
 
-// ============================================
+// ==========================================
+// BANGLADESH DATE
+// ==========================================
+
+function getBangladeshDate(): string {
+  return new Intl.DateTimeFormat("bn-BD", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Dhaka",
+  }).format(new Date());
+}
+
+// ==========================================
 // MAIN NAVBAR
-// ============================================
+// ==========================================
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -149,48 +157,77 @@ export default function Navbar() {
   const user = session?.user;
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [banglaDate, setBanglaDate] = useState("");
-  const [signingOut, setSigningOut] = useState(false);
+  const [profileOpen, setProfileOpen] =
+    useState(false);
+  const [signingOut, setSigningOut] =
+    useState(false);
 
   const profileRef = useRef<HTMLDivElement>(null);
 
   const fullName =
     user?.name?.trim() || "ব্যবহারকারী";
 
-  const firstName =
-    fullName.split(/\s+/)[0];
-
+  const firstName = fullName.split(/\s+/)[0];
   const email = user?.email || "";
   const profileImage = user?.image || null;
 
-  // ============================================
-  // BANGLADESH DATE
-  // ============================================
+  // Calculate date without setting state in an effect.
+  // A fixed placeholder is used during server rendering
+  // and the initial hydration render.
+  const [banglaDate, setBanglaDate] = useState(
+    "বাংলাদেশের বাজারদর"
+  );
 
   useEffect(() => {
-    const date = new Intl.DateTimeFormat("bn-BD", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "Asia/Dhaka",
-    }).format(new Date());
+    // Update asynchronously after hydration.
+    const frame = requestAnimationFrame(() => {
+      setBanglaDate(getBangladeshDate());
+    });
 
-    setBanglaDate(date);
+    return () => cancelAnimationFrame(frame);
   }, []);
 
-  // ============================================
-  // CLOSE MENUS WHEN ROUTE CHANGES
-  // ============================================
+  // ==========================================
+  // CLOSE MENUS ON NAVIGATION
+  // ==========================================
 
-  useEffect(() => {
+  // Remember the route on which a menu was opened.
+  // When the pathname changes, that menu becomes hidden
+  // without calling setState inside an effect.
+
+  const [menuRoute, setMenuRoute] = useState(
+    pathname
+  );
+
+  const [profileRoute, setProfileRoute] =
+    useState(pathname);
+
+  const isMenuOpen =
+    menuOpen && menuRoute === pathname;
+
+  const isProfileOpen =
+    profileOpen && profileRoute === pathname;
+
+  function toggleMenu() {
+    setMenuRoute(pathname);
+    setMenuOpen(!isMenuOpen);
+    setProfileOpen(false);
+  }
+
+  function toggleProfile() {
+    setProfileRoute(pathname);
+    setProfileOpen(!isProfileOpen);
+    setMenuOpen(false);
+  }
+
+  function closeMenus() {
     setMenuOpen(false);
     setProfileOpen(false);
-  }, [pathname]);
+  }
 
-  // ============================================
-  // CLOSE PROFILE DROPDOWN ON OUTSIDE CLICK
-  // ============================================
+  // ==========================================
+  // OUTSIDE CLICK / ESCAPE KEY
+  // ==========================================
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -207,6 +244,7 @@ export default function Navbar() {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setProfileOpen(false);
+        setMenuOpen(false);
       }
     }
 
@@ -233,9 +271,9 @@ export default function Navbar() {
     };
   }, []);
 
-  // ============================================
+  // ==========================================
   // SIGN OUT
-  // ============================================
+  // ==========================================
 
   async function handleSignOut() {
     if (signingOut) return;
@@ -251,14 +289,15 @@ export default function Navbar() {
         );
       }
 
-      setProfileOpen(false);
-      setMenuOpen(false);
+      closeMenus();
+
+      toast.success("সফলভাবে সাইন আউট হয়েছে");
 
       window.location.assign("/");
     } catch (error) {
       console.error("Sign out failed:", error);
 
-      alert(
+      toast.error(
         "সাইন আউট করা যায়নি। আবার চেষ্টা করুন।"
       );
 
@@ -266,11 +305,13 @@ export default function Navbar() {
     }
   }
 
+  // ==========================================
+  // NAVBAR
+  // ==========================================
+
   return (
     <header className="relative z-50 w-full bg-white">
-      {/* =====================================
-          FIRST ROW: LOGO AND AUTHENTICATION
-      ===================================== */}
+      {/* FIRST ROW: LOGO AND AUTHENTICATION */}
 
       <div className="border-b border-gray-100">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -278,6 +319,7 @@ export default function Navbar() {
 
           <Link
             href="/"
+            onClick={closeMenus}
             className="flex items-center gap-2.5"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#008b3d] p-2">
@@ -296,34 +338,27 @@ export default function Navbar() {
               </h1>
 
               <p className="mt-0.5 text-[11px] text-gray-500">
-                {banglaDate || "বাংলাদেশের বাজারদর"}
+                {banglaDate}
               </p>
             </div>
           </Link>
 
-          {/* =====================================
-              RIGHT SIDE: AUTH / PROFILE
-          ===================================== */}
+          {/* AUTH / PROFILE */}
 
           <div className="flex items-center gap-3">
             {isPending ? (
               <div className="h-9 w-28 animate-pulse rounded-lg bg-gray-100" />
             ) : user ? (
-              /* =====================================
-                  LOGGED-IN PROFILE
-              ===================================== */
-
               <div
                 ref={profileRef}
                 className="relative"
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    setProfileOpen(!profileOpen)
-                  }
-                  aria-expanded={profileOpen}
+                  onClick={toggleProfile}
+                  aria-expanded={isProfileOpen}
                   aria-haspopup="menu"
+                  aria-label="প্রোফাইল মেনু"
                   className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-[#F3F7F4]"
                 >
                   <ProfileAvatar
@@ -339,24 +374,18 @@ export default function Navbar() {
                   <ChevronDown
                     size={13}
                     className={`text-gray-500 transition-transform ${
-                      profileOpen
-                        ? "rotate-180"
-                        : ""
+                      isProfileOpen ? "rotate-180" : ""
                     }`}
                   />
                 </button>
 
-                {/* =====================================
-                    PROFILE DROPDOWN
-                ===================================== */}
+                {/* PROFILE DROPDOWN */}
 
-                {profileOpen && (
+                {isProfileOpen && (
                   <div
                     role="menu"
                     className="absolute right-0 top-[calc(100%+10px)] z-[100] w-[256px] rounded-2xl border border-[#DEE7DF] bg-white px-5 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.16)]"
                   >
-                    {/* USER DETAILS */}
-
                     <div className="mb-4">
                       <p className="truncate text-[14px] font-semibold text-[#1C2B20]">
                         {fullName}
@@ -367,14 +396,10 @@ export default function Navbar() {
                       </p>
                     </div>
 
-                    {/* MY PROFILE */}
-
                     <Link
                       href="/profile"
                       role="menuitem"
-                      onClick={() =>
-                        setProfileOpen(false)
-                      }
+                      onClick={closeMenus}
                       className="flex items-center gap-2 py-1 text-[13px] text-[#26352A] transition hover:text-[#008b3d]"
                     >
                       <UserRound
@@ -384,8 +409,6 @@ export default function Navbar() {
 
                       <span>আমার প্রোফাইল</span>
                     </Link>
-
-                    {/* SIGN OUT */}
 
                     <button
                       type="button"
@@ -406,10 +429,6 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              /* =====================================
-                  LOGGED-OUT BUTTONS
-              ===================================== */
-
               <div className="hidden items-center gap-4 md:flex">
                 <Link
                   href="/signin"
@@ -431,18 +450,16 @@ export default function Navbar() {
 
             <button
               type="button"
-              onClick={() =>
-                setMenuOpen(!menuOpen)
-              }
+              onClick={toggleMenu}
               aria-label={
-                menuOpen
+                isMenuOpen
                   ? "মেনু বন্ধ করুন"
                   : "মেনু খুলুন"
               }
-              aria-expanded={menuOpen}
+              aria-expanded={isMenuOpen}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-gray-700 md:hidden"
             >
-              {menuOpen ? (
+              {isMenuOpen ? (
                 <X size={20} />
               ) : (
                 <Menu size={20} />
@@ -452,11 +469,12 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* =====================================
-          SECOND ROW: CATEGORY NAVIGATION
-      ===================================== */}
+      {/* SECOND ROW: CATEGORY NAVIGATION */}
 
-      <nav className="hidden border-b border-gray-100 md:block">
+      <nav
+        aria-label="পণ্যের ক্যাটাগরি"
+        className="hidden border-b border-gray-100 md:block"
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-start gap-3 px-4 py-2 lg:gap-5">
           {categories.map((category) => {
             const active =
@@ -467,6 +485,10 @@ export default function Navbar() {
               <Link
                 key={category.slug}
                 href={`/category/${category.slug}`}
+                onClick={closeMenus}
+                aria-current={
+                  active ? "page" : undefined
+                }
                 className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium transition ${
                   active
                     ? "bg-[#008b3d] text-white"
@@ -485,11 +507,9 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* =====================================
-          MOBILE NAVIGATION
-      ===================================== */}
+      {/* MOBILE NAVIGATION */}
 
-      {menuOpen && (
+      {isMenuOpen && (
         <div className="border-t border-gray-100 bg-white px-4 py-4 md:hidden">
           <p className="mb-3 text-sm font-semibold text-gray-500">
             পণ্যের ক্যাটাগরি
@@ -505,9 +525,7 @@ export default function Navbar() {
                 <Link
                   key={category.slug}
                   href={`/category/${category.slug}`}
-                  onClick={() =>
-                    setMenuOpen(false)
-                  }
+                  onClick={closeMenus}
                   className={`flex items-center gap-2 rounded-md px-3 py-3 text-sm font-medium ${
                     active
                       ? "bg-[#008b3d] text-white"
@@ -525,17 +543,13 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* =====================================
-              MOBILE AUTHENTICATION
-          ===================================== */}
+          {/* MOBILE AUTHENTICATION */}
 
           {!isPending && !user && (
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4">
               <Link
                 href="/signin"
-                onClick={() =>
-                  setMenuOpen(false)
-                }
+                onClick={closeMenus}
                 className="rounded-md border border-[#008b3d] py-2.5 text-center text-sm font-medium text-[#008b3d]"
               >
                 সাইন ইন
@@ -543,9 +557,7 @@ export default function Navbar() {
 
               <Link
                 href="/signup"
-                onClick={() =>
-                  setMenuOpen(false)
-                }
+                onClick={closeMenus}
                 className="rounded-md bg-[#008b3d] py-2.5 text-center text-sm font-medium text-white"
               >
                 সাইন আপ
@@ -553,15 +565,13 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* MOBILE PROFILE LINK */}
+          {/* MOBILE PROFILE */}
 
           {!isPending && user && (
             <div className="mt-4 border-t border-gray-100 pt-4">
               <Link
                 href="/profile"
-                onClick={() =>
-                  setMenuOpen(false)
-                }
+                onClick={closeMenus}
                 className="flex items-center gap-2 rounded-md bg-[#F0F5F1] px-3 py-3 text-sm font-medium text-[#25372B]"
               >
                 <UserRound size={17} />
@@ -575,6 +585,7 @@ export default function Navbar() {
                 className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-3 text-left text-sm font-medium text-red-500 disabled:opacity-50"
               >
                 <LogOut size={17} />
+
                 {signingOut
                   ? "সাইন আউট হচ্ছে..."
                   : "সাইন আউট"}

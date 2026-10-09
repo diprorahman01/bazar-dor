@@ -1,7 +1,12 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Image from "next/image";
+
+// ==========================================
+// PRODUCT IMAGE PROPS
+// ==========================================
 
 type ProductImageProps = {
   name: string;
@@ -10,12 +15,16 @@ type ProductImageProps = {
   transparent?: boolean;
 };
 
+// ==========================================
+// TWEMOJI CONFIGURATION
+// ==========================================
+
 const TWEMOJI_BASE =
   "https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.2/assets/svg";
 
-// ============================================
+// ==========================================
 // MATCH PRODUCT ICONS TO FIGMA DESIGN
-// ============================================
+// ==========================================
 
 function getProductEmoji(
   name: string,
@@ -24,8 +33,7 @@ function getProductEmoji(
   const n = name
     .trim()
     .normalize("NFC")
-    .replace(/য়/g, "য়")
-    .replace(/ঁ/g, "ঁ");
+    .replace(/য়/g, "য়");
 
   // RICE
   if (
@@ -125,9 +133,9 @@ function getProductEmoji(
   return fallback;
 }
 
-// ============================================
+// ==========================================
 // EMOJI TO TWEMOJI SVG URL
-// ============================================
+// ==========================================
 
 function getTwemojiUrl(emoji: string): string {
   const code = Array.from(emoji)
@@ -140,9 +148,9 @@ function getTwemojiUrl(emoji: string): string {
   return `${TWEMOJI_BASE}/${code}.svg`;
 }
 
-// ============================================
+// ==========================================
 // PRODUCT IMAGE COMPONENT
-// ============================================
+// ==========================================
 
 export default function ProductImage({
   name,
@@ -150,13 +158,23 @@ export default function ProductImage({
   size = 28,
   transparent = false,
 }: ProductImageProps) {
+  // Find the correct product emoji
   const emoji = getProductEmoji(name, icon);
 
-  const [failed, setFailed] = useState(false);
+  // Track the URL that failed to load.
+  // This avoids resetting state inside useEffect.
+  const [failedUrl, setFailedUrl] = useState<
+    string | null
+  >(null);
 
-  useEffect(() => {
-    setFailed(false);
-  }, [emoji]);
+  // Generate the current emoji URL
+  const imageUrl = emoji
+    ? getTwemojiUrl(emoji)
+    : "";
+
+  // Only use fallback for the image that failed
+  const imageFailed =
+    imageUrl !== "" && failedUrl === imageUrl;
 
   return (
     <div
@@ -171,20 +189,25 @@ export default function ProductImage({
         height: transparent ? size : size + 16,
       }}
     >
-      {emoji && !failed ? (
-        <img
-          src={getTwemojiUrl(emoji)}
+      {/* TWEMOJI IMAGE */}
+
+      {emoji && !imageFailed ? (
+        <Image
+          src={imageUrl}
           alt={name}
           width={size}
           height={size}
+          unoptimized
           className="block shrink-0 object-contain"
           style={{
             width: size,
             height: size,
           }}
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(imageUrl)}
         />
       ) : (
+        /* FALLBACK EMOJI */
+
         <span
           role="img"
           aria-label={name}

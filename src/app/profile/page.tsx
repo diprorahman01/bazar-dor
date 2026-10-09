@@ -2,10 +2,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { LogOut, UserRound } from "lucide-react";
-import { toast } from "sonner";
+import {
+  LogOut,
+  UserRound,
+  Pencil,
+  Mail,
+  ArrowRight,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -18,91 +25,72 @@ export default function ProfilePage() {
 
   const user = session?.user;
 
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
+  // Redirect unauthenticated users to sign in
   useEffect(() => {
-    if (user?.name) {
-      setName(user.name);
+    if (!isPending && !sessionError && !user) {
+      toast.error("প্রোফাইল দেখতে আগে সাইন ইন করুন");
+
+      router.replace("/signin?redirect=/profile");
     }
-  }, [user?.name]);
+  }, [isPending, sessionError, user, router]);
 
-  async function handleUpdate(
-    e: React.FormEvent<HTMLFormElement>
-  ) {
-    e.preventDefault();
-
-    const updatedName = name.trim();
-
-    if (!updatedName) {
-      toast.error("আপনার নাম লিখুন");
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const result = await authClient.updateUser({
-        name: updatedName,
-      });
-
-      if (result.error) {
-        toast.error(
-          result.error.message ||
-            "প্রোফাইল আপডেট করা যায়নি"
-        );
-        return;
-      }
-
-      toast.success("প্রোফাইল আপডেট হয়েছে");
-
-      await authClient.getSession({
-        query: {
-          disableCookieCache: true,
-        },
-      });
-
-      router.refresh();
-    } catch (error) {
-      console.error("Profile update failed:", error);
-      toast.error("প্রোফাইল আপডেট করা যায়নি");
-    } finally {
-      setSaving(false);
-    }
-  }
+  // ==========================================
+  // SIGN OUT
+  // ==========================================
 
   async function handleSignOut() {
+    if (signingOut) return;
+
     setSigningOut(true);
 
     try {
       const result = await authClient.signOut();
 
       if (result.error) {
-        toast.error("সাইন আউট করা যায়নি");
+        toast.error(
+          result.error.message || "সাইন আউট করা যায়নি"
+        );
         return;
       }
 
-      window.location.assign("/signin");
+      toast.success("সফলভাবে সাইন আউট হয়েছে");
+
+      router.replace("/signin");
+      router.refresh();
     } catch (error) {
       console.error("Sign out failed:", error);
-      toast.error("সাইন আউট করা যায়নি");
+
+      toast.error(
+        "সাইন আউট করা যায়নি। আবার চেষ্টা করুন।"
+      );
     } finally {
       setSigningOut(false);
     }
   }
+
+  // ==========================================
+  // LOADING SKELETON
+  // ==========================================
 
   if (isPending) {
     return (
       <main className="min-h-[65vh] bg-[#F1F6F2] px-4 py-20">
         <div className="mx-auto max-w-[630px] animate-pulse">
           <div className="mb-6 h-8 w-48 rounded bg-gray-200" />
+
           <div className="mb-5 h-28 rounded-2xl bg-white" />
-          <div className="h-52 rounded-2xl bg-white" />
+
+          <div className="h-64 rounded-2xl bg-white" />
         </div>
       </main>
     );
   }
+
+  // ==========================================
+  // SESSION ERROR
+  // ==========================================
 
   if (sessionError) {
     return (
@@ -113,6 +101,7 @@ export default function ProfilePage() {
           </p>
 
           <button
+            type="button"
             onClick={() => window.location.reload()}
             className="mt-4 rounded-lg bg-[#008C3C] px-5 py-2 text-white"
           >
@@ -123,34 +112,27 @@ export default function ProfilePage() {
     );
   }
 
+  // Wait while redirecting to sign in
   if (!user) {
     return (
       <main className="flex min-h-[65vh] items-center justify-center bg-[#F1F6F2] px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[#DEE7E0] bg-white p-8 text-center">
+        <div className="text-center">
           <UserRound
-            size={40}
-            className="mx-auto mb-4 text-[#008C3C]"
+            size={36}
+            className="mx-auto mb-3 text-[#008C3C]"
           />
 
-          <h1 className="text-xl font-bold text-[#15251B]">
-            আগে সাইন ইন করুন
-          </h1>
-
-          <p className="mt-2 text-sm text-gray-500">
-            প্রোফাইল দেখতে আপনার অ্যাকাউন্টে
-            সাইন ইন করতে হবে।
+          <p className="text-sm text-[#788679]">
+            সাইন ইন পেজে নিয়ে যাওয়া হচ্ছে...
           </p>
-
-          <button
-            onClick={() => router.push("/signin")}
-            className="mt-6 rounded-lg bg-[#008C3C] px-6 py-2.5 font-semibold text-white hover:bg-[#007431]"
-          >
-            সাইন ইন করুন
-          </button>
         </div>
       </main>
     );
   }
+
+  // ==========================================
+  // USER INFORMATION
+  // ==========================================
 
   const displayName = user.name || "ব্যবহারকারী";
   const displayEmail = user.email || "";
@@ -159,6 +141,8 @@ export default function ProfilePage() {
   return (
     <main className="min-h-[70vh] bg-[#F1F6F2] px-4 py-12">
       <div className="mx-auto max-w-[630px]">
+        {/* PAGE HEADER */}
+
         <div className="mb-6">
           <h1 className="text-[26px] font-bold text-[#15251B]">
             আমার প্রোফাইল
@@ -170,6 +154,7 @@ export default function ProfilePage() {
         </div>
 
         {/* USER INFORMATION CARD */}
+
         <div className="mb-5 flex flex-wrap items-center gap-4 rounded-2xl border border-[#DEE7E0] bg-white p-5">
           {user.image ? (
             <img
@@ -194,64 +179,79 @@ export default function ProfilePage() {
             </p>
           </div>
 
+          {/* SIGN OUT BUTTON */}
+
           <button
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="inline-flex items-center gap-2 rounded-lg border border-red-400 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-red-400 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <LogOut size={16} />
-            {signingOut ? "অপেক্ষা করুন..." : "সাইন আউট"}
+
+            {signingOut
+              ? "অপেক্ষা করুন..."
+              : "সাইন আউট"}
           </button>
         </div>
 
-        {/* EDIT PROFILE CARD */}
+        {/* PROFILE DETAILS CARD */}
+
         <div className="rounded-2xl border border-[#DEE7E0] bg-white p-6 sm:p-9">
           <h3 className="mb-7 text-lg font-bold text-[#15251B]">
-            তথ্য
+            ব্যক্তিগত তথ্য
           </h3>
 
-          <form onSubmit={handleUpdate}>
-            <label
-              htmlFor="profile-name"
-              className="mb-2 block text-sm font-semibold text-[#15251B]"
-            >
+          {/* NAME */}
+
+          <div className="mb-6">
+            <label className="mb-2 block text-sm font-semibold text-[#15251B]">
               নাম
             </label>
 
-            <input
-              id="profile-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="আপনার নাম লিখুন"
-              required
-              className="w-full rounded-lg border border-[#DEE7E0] bg-white px-4 py-3 text-sm text-[#15251B] outline-none transition focus:border-[#008C3C] focus:ring-2 focus:ring-green-100"
-            />
+            <div className="flex min-h-[48px] items-center rounded-lg border border-[#DEE7E0] bg-[#FAFCFA] px-4 py-3">
+              <UserRound
+                size={18}
+                className="mr-3 shrink-0 text-[#788679]"
+              />
 
-            <label
-              htmlFor="profile-email"
-              className="mb-2 mt-5 block text-sm font-semibold text-[#15251B]"
-            >
+              <p className="break-words text-sm text-[#15251B]">
+                {displayName}
+              </p>
+            </div>
+          </div>
+
+          {/* EMAIL */}
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-[#15251B]">
               ইমেইল
             </label>
 
-            <input
-              id="profile-email"
-              type="email"
-              value={displayEmail}
-              readOnly
-              className="w-full cursor-not-allowed rounded-lg border border-[#DEE7E0] bg-gray-50 px-4 py-3 text-sm text-gray-600 outline-none"
-            />
+            <div className="flex min-h-[48px] items-center rounded-lg border border-[#DEE7E0] bg-[#FAFCFA] px-4 py-3">
+              <Mail
+                size={18}
+                className="mr-3 shrink-0 text-[#788679]"
+              />
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="mt-5 w-full rounded-lg bg-[#008C3C] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#007431] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? "আপডেট হচ্ছে..." : "আপডেট"}
-            </button>
-          </form>
+              <p className="break-all text-sm text-[#15251B]">
+                {displayEmail}
+              </p>
+            </div>
+          </div>
+
+          {/* UPDATE INFORMATION BUTTON */}
+
+          <Link
+            href="/profile/edit"
+            className="mt-7 flex w-full items-center justify-center gap-2 rounded-lg bg-[#008C3C] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#007431] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#008C3C]"
+          >
+            <Pencil size={17} />
+
+            Update Information
+
+            <ArrowRight size={17} />
+          </Link>
         </div>
       </div>
     </main>
