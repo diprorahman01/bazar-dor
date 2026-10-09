@@ -3,7 +3,7 @@ import type { Product } from "@/types/product";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://api.abcz.workers.dev/api/bazardor";
+  "https://api.api-store.workers.dev/api/bazardor";
 
 type DataObject = Record<string, unknown>;
 
