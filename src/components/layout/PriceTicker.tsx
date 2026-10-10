@@ -25,15 +25,10 @@ function getEmojiForProduct(
   const n = name.trim();
 
   if (n.includes("চাল")) return "🍚";
-  if (n.includes("ডাল") || n.includes("ছোলা"))
-    return "🫘";
-
+  if (n.includes("ডাল") || n.includes("ছোলা")) return "🫘";
   if (n.includes("তেল")) return "🫙";
 
-  if (
-    n.includes("পেঁয়াজ") ||
-    n.includes("পেঁয়াজ")
-  ) {
+  if (n.includes("পেঁয়াজ") || n.includes("পেঁয়াজ")) {
     return "🧅";
   }
 
@@ -43,20 +38,14 @@ function getEmojiForProduct(
   if (n.includes("মরিচ")) return "🌶️";
   if (n.includes("আদা")) return "🫚";
 
-  if (
-    n.includes("চিংড়ি") ||
-    n.includes("চিংড়ি")
-  ) {
+  if (n.includes("চিংড়ি") || n.includes("চিংড়ি")) {
     return "🦐";
   }
 
   if (n.includes("মাছ")) return "🐟";
   if (n.includes("মুরগি")) return "🍗";
 
-  if (
-    n.includes("গরুর") ||
-    n.includes("খাসির")
-  ) {
+  if (n.includes("গরুর") || n.includes("খাসির")) {
     return "🥩";
   }
 
@@ -96,9 +85,9 @@ function TickerEmoji({
     product.icon
   );
 
-  const [failedUrl, setFailedUrl] = useState<
-    string | null
-  >(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(
+    null
+  );
 
   if (!emoji) return null;
 
@@ -159,7 +148,7 @@ function TickerItems({
               {banglaPrice(product.price)}
             </span>
 
-            {change !== null && (
+            {change !== null && Number.isFinite(change) && (
               <span
                 className={
                   "text-[12px] font-bold " +
@@ -175,7 +164,7 @@ function TickerItems({
                   : change < 0
                     ? "▼"
                     : "—"}{" "}
-                {banglaPercent(change)}
+                {banglaPercent(Math.abs(change))}
               </span>
             )}
           </div>
@@ -190,9 +179,9 @@ function TickerItems({
 // ==========================================
 
 export default function PriceTicker() {
-  const [products, setProducts] = useState<
-    BazarProduct[]
-  >([]);
+  const [products, setProducts] = useState<BazarProduct[]>(
+    []
+  );
 
   const [error, setError] = useState(false);
 
@@ -208,10 +197,7 @@ export default function PriceTicker() {
         setProducts(result.products);
         setError(false);
       } catch (err) {
-        console.error(
-          "Price ticker error:",
-          err
-        );
+        console.error("Price ticker error:", err);
 
         if (active) {
           setError(true);
@@ -227,69 +213,29 @@ export default function PriceTicker() {
   }, []);
 
   return (
-    <>
-      <div className="flex h-[48px] w-full overflow-hidden border-y border-[#DDE9DF] bg-white">
-        {/* LEFT LABEL */}
+    <div className="flex h-[48px] w-full overflow-hidden border-y border-[#DDE9DF] bg-white">
+      {/* FULL-WIDTH SCROLLING PRODUCTS */}
+      <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+        {products.length > 0 ? (
+          <div className="bazar-marquee flex w-max items-center">
+            <TickerItems products={products} />
 
-        <div className="z-10 flex shrink-0 items-center bg-[#16803D] px-4 text-[13px] font-bold text-white md:px-6">
-          আজকের বাজার দর
-        </div>
-
-        {/* SCROLLING PRODUCTS */}
-
-        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          {products.length > 0 ? (
-            <div className="bazar-marquee flex w-max items-center">
+            {/* Duplicate items for seamless scrolling */}
+            <div
+              aria-hidden="true"
+              className="flex shrink-0"
+            >
               <TickerItems products={products} />
-
-              {/* Duplicate items for seamless scrolling */}
-
-              <div
-                aria-hidden="true"
-                className="flex shrink-0"
-              >
-                <TickerItems products={products} />
-              </div>
             </div>
-          ) : (
-            <p className="px-5 text-xs text-gray-500">
-              {error
-                ? "বাজার দর লোড করা যায়নি"
-                : "বাজার দর লোড হচ্ছে..."}
-            </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <p className="px-5 text-xs text-gray-500">
+            {error
+              ? "বাজার দর লোড করা যায়নি"
+              : "বাজার দর লোড হচ্ছে..."}
+          </p>
+        )}
       </div>
-
-      {/* SCROLLING ANIMATION */}
-
-      <style jsx global>{`
-        @keyframes bazar-marquee-scroll {
-          from {
-            transform: translateX(0);
-          }
-
-          to {
-            transform: translateX(-50%);
-          }
-        }
-
-        .bazar-marquee {
-          animation: bazar-marquee-scroll
-            70s linear infinite;
-          will-change: transform;
-        }
-
-        .bazar-marquee:hover {
-          animation-play-state: paused;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .bazar-marquee {
-            animation: none;
-          }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }

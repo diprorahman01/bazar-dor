@@ -2,10 +2,18 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* ==========================================
+   GLOBAL THEME
+========================================== */
+
 :root {
   --background: #f0f5f1;
   --foreground: #1f2937;
 }
+
+/* ==========================================
+   GLOBAL RESET
+========================================== */
 
 * {
   box-sizing: border-box;
@@ -32,7 +40,10 @@ button {
   cursor: pointer;
 }
 
-/* Infinite moving price ticker */
+/* ==========================================
+   PRICE TICKER ANIMATION
+   Slow and smooth scrolling
+========================================== */
 
 @keyframes bazar-scroll {
   0% {
@@ -45,22 +56,24 @@ button {
 }
 
 .bazar-marquee {
-  animation: bazar-scroll 35s linear infinite;
+  display: flex;
+  width: max-content;
+  animation: bazar-scroll 120s linear infinite;
   will-change: transform;
 }
+
+/* Pause ticker when mouse is over it */
 
 .bazar-marquee:hover {
   animation-play-state: paused;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .bazar-marquee {
-    animation: none;
-  }
-}
+/* ==========================================
+   ALTERNATIVE TICKER ANIMATION
+========================================== */
 
 
-@keyframes bazarTickerScroll {
+@keyframes bazar-scroll {
   from {
     transform: translateX(0);
   }
@@ -70,16 +83,21 @@ button {
   }
 }
 
-.bazar-ticker-track {
-  animation: bazarTickerScroll 45s linear infinite;
+.bazar-marquee {
+  display: flex;
+  width: max-content;
+  animation: bazar-scroll 100s linear infinite !important;
+  will-change: transform;
 }
 
-.bazar-ticker-track:hover {
-  animation-play-state: paused;
+.bazar-marquee:hover {
+  animation-play-state: paused !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bazar-ticker-track {
-    animation: none;
+  .bazar-marquee {
+    animation: none !important;
   }
 }
+
+
