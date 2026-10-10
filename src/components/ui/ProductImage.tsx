@@ -5,12 +5,13 @@ import { useState } from "react";
 import Image from "next/image";
 
 // ==========================================
-// PRODUCT IMAGE PROPS
+// TYPES
 // ==========================================
 
 type ProductImageProps = {
   name: string;
   icon?: string;
+  category?: string;
   size?: number;
   transparent?: boolean;
 };
@@ -23,126 +24,522 @@ const TWEMOJI_BASE =
   "https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.2/assets/svg";
 
 // ==========================================
-// MATCH PRODUCT ICONS TO FIGMA DESIGN
+// TEXT NORMALIZATION
 // ==========================================
 
-function getProductEmoji(
-  name: string,
-  fallback: string
-): string {
-  const n = name
+function normalizeText(value: string): string {
+  return value
     .trim()
+    .toLowerCase()
     .normalize("NFC")
-    .replace(/য়/g, "য়");
+    .replace(/য়/g, "য়")
+    .replace(/ড়/g, "ড়")
+    .replace(/ঢ়/g, "ঢ়")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function matches(
+  name: string,
+  keywords: string[]
+): boolean {
+  return keywords.some((keyword) =>
+    name.includes(normalizeText(keyword))
+  );
+}
+
+// ==========================================
+// CATEGORY NORMALIZATION
+// ==========================================
+
+function normalizeCategory(
+  category: string
+): string {
+  const value = normalizeText(category);
+
+  const aliases: Record<string, string> = {
+    chal: "chal",
+    rice: "chal",
+    "চাল": "chal",
+
+    dal: "dal",
+    daal: "dal",
+    lentil: "dal",
+    pulses: "dal",
+    "ডাল": "dal",
+
+    tel: "tel",
+    oil: "tel",
+    "edible oil": "tel",
+    "তেল": "tel",
+
+    sobji: "sobji",
+    vegetable: "sobji",
+    vegetables: "sobji",
+    "সবজি": "sobji",
+
+    mach: "mach",
+    fish: "mach",
+    seafood: "mach",
+    "মাছ": "mach",
+
+    mangsho: "mangsho",
+    mangso: "mangsho",
+    meat: "mangsho",
+    "মাংস": "mangsho",
+
+    "dim dudh": "dim-dudh",
+    "egg milk": "dim-dudh",
+    eggs: "dim-dudh",
+    dairy: "dim-dudh",
+    milk: "dim-dudh",
+    "ডিম দুধ": "dim-dudh",
+    "ডিম ও দুধ": "dim-dudh",
+
+    moshla: "moshla",
+    mosla: "moshla",
+    masala: "moshla",
+    spices: "moshla",
+    spice: "moshla",
+    "মসলা": "moshla",
+    "মশলা": "moshla",
+  };
+
+  return aliases[value] || value;
+}
+
+// ==========================================
+// PRODUCT NAME EMOJI MATCHING
+// ==========================================
+
+function getSpecificEmoji(
+  name: string
+): string | null {
+  const n = normalizeText(name);
 
   // RICE
+  // Check rice before fish to prevent
+  // accidental matches in Bengali names.
+
   if (
-    n.includes("চাল") ||
-    n.includes("মিনিকেট") ||
-    n.includes("নাজিরশাইল") ||
-    n.includes("বাসমতি")
+    matches(n, [
+      "চাল",
+      "মিনিকেট",
+      "নাজিরশাইল",
+      "বাসমতি",
+      "স্বর্ণমুচি",
+      "স্বর্ণামুচি",
+      "স্বর্ণমুছি",
+      "আতপ",
+      "পোলাও",
+      "rice",
+    ])
   ) {
     return "🍚";
   }
 
-  // LENTILS
+  // SHRIMP
   if (
-    n.includes("ডাল") ||
-    n.includes("ছোলা")
-  ) {
-    return "🫘";
-  }
-
-  // COOKING OIL
-  if (n.includes("তেল")) {
-    return "🫙";
-  }
-
-  // VEGETABLES
-  if (
-    n.includes("পেঁয়াজ") ||
-    n.includes("পেয়াজ")
-  ) {
-    return "🧅";
-  }
-
-  if (n.includes("রসুন")) return "🧄";
-  if (n.includes("আলু")) return "🥔";
-  if (n.includes("বেগুন")) return "🍆";
-  if (n.includes("মরিচ")) return "🌶️";
-  if (n.includes("আদা")) return "🫚";
-  if (n.includes("টমেটো")) return "🍅";
-  if (n.includes("ধনেপাতা")) return "🌿";
-  if (n.includes("ঢেঁড়স")) return "🥬";
-
-  // FISH
-  if (
-    n.includes("চিংড়ি") ||
-    n.includes("চিংরি")
+    matches(n, [
+      "চিংড়ি",
+      "চিংড়ি",
+      "চিংরি",
+      "চিংড়ী",
+      "shrimp",
+      "prawn",
+    ])
   ) {
     return "🦐";
   }
 
+  // FISH
+  // Avoid short ambiguous keywords such as
+  // "কৈ" that can match unrelated names.
+
   if (
-    n.includes("রুই") ||
-    n.includes("কাতলা") ||
-    n.includes("তেলাপিয়া") ||
-    n.includes("পাঙ্গাস") ||
-    n.includes("ইলিশ") ||
-    n.includes("মাছ")
+    matches(n, [
+      "তেলাপিয়া",
+      "তেলাপিয়া",
+      "tilapia",
+      "telapia",
+      "রুই মাছ",
+      "রুই",
+      "কাতলা",
+      "ইলিশ",
+      "পাঙ্গাস",
+      "পাঙাশ",
+      "কৈ মাছ",
+      "শিং মাছ",
+      "মাগুর",
+      "বোয়াল",
+      "বোয়াল",
+      "fish",
+      "মাছ",
+    ])
   ) {
     return "🐟";
   }
 
+  // LENTILS
+  if (
+    matches(n, [
+      "ডাল",
+      "ছোলা",
+      "মসুর",
+      "মুগ",
+      "মাষকলাই",
+      "lentil",
+      "pulses",
+    ])
+  ) {
+    return "🫘";
+  }
+
+  // VEGETABLES
+  if (
+    matches(n, [
+      "পেঁয়াজ",
+      "পেঁয়াজ",
+      "পেয়াজ",
+      "onion",
+    ])
+  ) {
+    return "🧅";
+  }
+
+  if (matches(n, ["রসুন", "garlic"])) {
+    return "🧄";
+  }
+
+  if (matches(n, ["আলু", "potato"])) {
+    return "🥔";
+  }
+
+  if (
+    matches(n, [
+      "বেগুন",
+      "eggplant",
+      "brinjal",
+    ])
+  ) {
+    return "🍆";
+  }
+
+  if (
+    matches(n, [
+      "টমেটো",
+      "tomato",
+    ])
+  ) {
+    return "🍅";
+  }
+
+  if (
+    matches(n, [
+      "শসা",
+      "cucumber",
+    ])
+  ) {
+    return "🥒";
+  }
+
+  if (
+    matches(n, [
+      "গাজর",
+      "carrot",
+    ])
+  ) {
+    return "🥕";
+  }
+
+  if (
+    matches(n, [
+      "মরিচ",
+      "chili",
+      "chilli",
+    ])
+  ) {
+    return "🌶️";
+  }
+
+  if (
+    matches(n, [
+      "আদা",
+      "ginger",
+    ])
+  ) {
+    return "🫚";
+  }
+
+  if (
+    matches(n, [
+      "ধনেপাতা",
+      "ধনে পাতা",
+      "coriander leaves",
+    ])
+  ) {
+    return "🌿";
+  }
+
+  if (
+    matches(n, [
+      "ঢেঁড়স",
+      "ঢেঁড়স",
+      "শাক",
+      "বাঁধাকপি",
+      "ফুলকপি",
+      "লাউ",
+      "করলা",
+      "cabbage",
+      "cauliflower",
+    ])
+  ) {
+    return "🥬";
+  }
+
+  // OIL
+  if (
+    matches(n, [
+      "তেল",
+      "সয়াবিন",
+      "সয়াবিন",
+      "সরিষার তেল",
+      "পাম অয়েল",
+      "sunflower oil",
+      "cooking oil",
+    ])
+  ) {
+    return "🫙";
+  }
+
   // MEAT
   if (
-    n.includes("মুরগি") ||
-    n.includes("চিকেন")
+    matches(n, [
+      "মুরগি",
+      "মুরগী",
+      "চিকেন",
+      "chicken",
+    ])
   ) {
     return "🍗";
   }
 
   if (
-    n.includes("গরুর") ||
-    n.includes("খাসির")
+    matches(n, [
+      "গরুর",
+      "খাসির",
+      "beef",
+      "mutton",
+    ])
   ) {
     return "🥩";
   }
 
   if (
-    n.includes("হাঁস") ||
-    n.includes("হাসের")
+    matches(n, [
+      "হাঁস",
+      "হাসের",
+      "duck",
+    ])
   ) {
     return "🦆";
   }
 
   // EGGS AND DAIRY
-  if (n.includes("ডিম")) return "🥚";
-  if (n.includes("দুধ")) return "🥛";
-  if (n.includes("দই")) return "🥛";
-  if (n.includes("মাখন")) return "🧈";
+  if (matches(n, ["ডিম", "egg"])) {
+    return "🥚";
+  }
 
-  // OTHER GROCERIES
-  if (n.includes("লবণ")) return "🧂";
-  if (n.includes("চিনি")) return "🍬";
-  if (n.includes("আটা")) return "🌾";
-  if (n.includes("ময়দা")) return "🌾";
-  if (n.includes("হলুদ")) return "🟡";
-  if (n.includes("মসলা")) return "🫙";
+  if (matches(n, ["দুধ", "milk"])) {
+    return "🥛";
+  }
 
-  return fallback;
+  if (
+    matches(n, [
+      "দই",
+      "yogurt",
+      "yoghurt",
+    ])
+  ) {
+    return "🥛";
+  }
+
+  if (
+    matches(n, [
+      "মাখন",
+      "butter",
+    ])
+  ) {
+    return "🧈";
+  }
+
+  if (
+    matches(n, [
+      "পনির",
+      "চিজ",
+      "cheese",
+    ])
+  ) {
+    return "🧀";
+  }
+
+  // SPICES AND GROCERIES
+  if (
+    matches(n, [
+      "লবণ",
+      "salt",
+    ])
+  ) {
+    return "🧂";
+  }
+
+  if (
+    matches(n, [
+      "চিনি",
+      "sugar",
+    ])
+  ) {
+    return "🍬";
+  }
+
+  if (
+    matches(n, [
+      "আটা",
+      "ময়দা",
+      "ময়দা",
+      "flour",
+    ])
+  ) {
+    return "🌾";
+  }
+
+  if (
+    matches(n, [
+      "হলুদ",
+      "turmeric",
+    ])
+  ) {
+    return "🟡";
+  }
+
+  if (
+    matches(n, [
+      "মসলা",
+      "মশলা",
+      "জিরা",
+      "দারুচিনি",
+      "এলাচ",
+      "লবঙ্গ",
+      "গোলমরিচ",
+      "masala",
+      "spice",
+    ])
+  ) {
+    return "🫙";
+  }
+
+  return null;
 }
 
 // ==========================================
-// EMOJI TO TWEMOJI SVG URL
+// CATEGORY FALLBACK EMOJI
 // ==========================================
 
-function getTwemojiUrl(emoji: string): string {
+function getCategoryEmoji(
+  category: string
+): string | null {
+  const key = normalizeCategory(category);
+
+  const emojis: Record<string, string> = {
+    chal: "🍚",
+    dal: "🫘",
+    tel: "🫙",
+    sobji: "🥬",
+    mach: "🐟",
+    mangsho: "🍗",
+    "dim-dudh": "🥛",
+    moshla: "🌶️",
+  };
+
+  return emojis[key] || null;
+}
+
+// ==========================================
+// VALIDATE API EMOJI
+// ==========================================
+
+function isSingleEmoji(
+  value: string
+): boolean {
+  if (!value.trim()) return false;
+
+  // Reject URLs and file paths.
+  if (
+    value.includes("http://") ||
+    value.includes("https://") ||
+    value.includes("/") ||
+    value.includes(".png") ||
+    value.includes(".svg")
+  ) {
+    return false;
+  }
+
+  // Only accept emoji-like Unicode characters.
+  return /\p{Extended_Pictographic}/u.test(
+    value
+  );
+}
+
+// ==========================================
+// FINAL EMOJI SELECTION
+// ==========================================
+
+function getProductEmoji(
+  name: string,
+  icon: string,
+  category: string
+): string {
+  // 1. Prefer exact product-name matching.
+  const specific = getSpecificEmoji(name);
+
+  if (specific) {
+    return specific;
+  }
+
+  // 2. Use the known category.
+  const categoryEmoji =
+    getCategoryEmoji(category);
+
+  if (categoryEmoji) {
+    return categoryEmoji;
+  }
+
+  // 3. Use the API icon if valid.
+  if (isSingleEmoji(icon)) {
+    return icon;
+  }
+
+  // 4. Safe final fallback.
+  return "🛒";
+}
+
+// ==========================================
+// EMOJI TO TWEMOJI URL
+// ==========================================
+
+function getTwemojiUrl(
+  emoji: string
+): string {
   const code = Array.from(emoji)
     .map((character) =>
-      character.codePointAt(0)!.toString(16)
+      character.codePointAt(0)!
+        .toString(16)
     )
-    .filter((code) => code !== "fe0f")
+    .filter(
+      (code) =>
+        code !== "fe0f" &&
+        code !== "fe0e"
+    )
     .join("-");
 
   return `${TWEMOJI_BASE}/${code}.svg`;
@@ -155,26 +552,23 @@ function getTwemojiUrl(emoji: string): string {
 export default function ProductImage({
   name,
   icon = "",
+  category = "",
   size = 28,
   transparent = false,
 }: ProductImageProps) {
-  // Find the correct product emoji
-  const emoji = getProductEmoji(name, icon);
+  const emoji = getProductEmoji(
+    name,
+    icon,
+    category
+  );
 
-  // Track the URL that failed to load.
-  // This avoids resetting state inside useEffect.
-  const [failedUrl, setFailedUrl] = useState<
-    string | null
-  >(null);
+  const imageUrl = getTwemojiUrl(emoji);
 
-  // Generate the current emoji URL
-  const imageUrl = emoji
-    ? getTwemojiUrl(emoji)
-    : "";
+  const [failedUrl, setFailedUrl] =
+    useState<string | null>(null);
 
-  // Only use fallback for the image that failed
   const imageFailed =
-    imageUrl !== "" && failedUrl === imageUrl;
+    failedUrl === imageUrl;
 
   return (
     <div
@@ -185,13 +579,26 @@ export default function ProductImage({
           : "rounded-xl bg-[#F0F5F1]")
       }
       style={{
-        width: transparent ? size : size + 16,
-        height: transparent ? size : size + 16,
+        width: transparent
+          ? size
+          : size + 16,
+        height: transparent
+          ? size
+          : size + 16,
       }}
     >
-      {/* TWEMOJI IMAGE */}
-
-      {emoji && !imageFailed ? (
+      {imageFailed ? (
+        <span
+          role="img"
+          aria-label={name}
+          className="leading-none"
+          style={{
+            fontSize: size,
+          }}
+        >
+          {emoji}
+        </span>
+      ) : (
         <Image
           src={imageUrl}
           alt={name}
@@ -203,21 +610,10 @@ export default function ProductImage({
             width: size,
             height: size,
           }}
-          onError={() => setFailedUrl(imageUrl)}
+          onError={() =>
+            setFailedUrl(imageUrl)
+          }
         />
-      ) : (
-        /* FALLBACK EMOJI */
-
-        <span
-          role="img"
-          aria-label={name}
-          className="leading-none"
-          style={{
-            fontSize: size,
-          }}
-        >
-          {emoji}
-        </span>
       )}
     </div>
   );

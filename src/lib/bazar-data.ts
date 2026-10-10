@@ -10,24 +10,32 @@ export type BazarProduct = {
 };
 
 const DEFAULT_API_BASE =
-  "https://api.api-store.workers.dev/api/bazardor";
+  "https://openapi.programming-hero.com/api/bazardor";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_BAZARDOR_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
   DEFAULT_API_BASE
 ).replace(/\/+$/, "");
 
 type ApiProduct = {
   id?: string | number;
   nameBn?: string;
+  name_bn?: string;
   name?: string;
   unit?: string;
   image?: string;
+  emoji?: string;
+  icon?: string;
   today?: number | string;
   yesterday?: number | string;
+  current_price?: number | string;
+  price?: number | string;
   change?: {
     dir?: string;
+    direction?: string;
     pct?: number | string;
+    percent?: number | string;
   };
 };
 
@@ -50,6 +58,10 @@ function getProductsArray(data: unknown): ApiProduct[] {
     return result.items;
   }
 
+  if (Array.isArray(result.results)) {
+    return result.results;
+  }
+
   if (result.data) {
     return getProductsArray(result.data);
   }
@@ -63,7 +75,22 @@ function toNumber(value: unknown): number | null {
   }
 
   if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
+    const digits = "০১২৩৪৫৬৭৮৯";
+
+    const normalized = value
+      .replace(/[০-৯]/g, (digit) =>
+        String(digits.indexOf(digit))
+      )
+      .replace(/,/g, "")
+      .replace(/[৳%▲▼]/g, "")
+      .trim();
+
+    const match = normalized.match(/-?\d+(\.\d+)?/);
+
+    if (!match) return null;
+
+    const parsed = Number(match[0]);
+
     return Number.isFinite(parsed) ? parsed : null;
   }
 
@@ -74,14 +101,24 @@ function normalizeProduct(
   item: ApiProduct,
   index: number
 ): BazarProduct {
-  const price = toNumber(item.today);
+  const price = toNumber(
+    item.today ?? item.current_price ?? item.price
+  );
+
   const yesterday = toNumber(item.yesterday);
-  const percentage = toNumber(item.change?.pct);
+
+  const percentage = toNumber(
+    item.change?.pct ?? item.change?.percent
+  );
 
   let change: number | null = null;
 
   if (percentage !== null) {
-    const direction = item.change?.dir?.toLowerCase();
+    const direction = (
+      item.change?.dir ??
+      item.change?.direction ??
+      ""
+    ).toLowerCase();
 
     if (direction === "up") {
       change = Math.abs(percentage);
@@ -104,13 +141,15 @@ function normalizeProduct(
     id: String(item.id ?? index + 1),
     name:
       item.nameBn ??
+      item.name_bn ??
       item.name ??
       "নাম পাওয়া যায়নি",
     unit: item.unit ?? "kg",
     icon:
-      typeof item.image === "string"
-        ? item.image
-        : "",
+      item.image ??
+      item.emoji ??
+      item.icon ??
+      "",
     price,
     change,
     demo: false,

@@ -3,50 +3,44 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { db } from "@/lib/mongodb";
 
-// ============================================
-// APPLICATION URL
-// ============================================
+const LOCAL_URL = "http://localhost:3000";
 
 const PRODUCTION_URL =
   "https://bazar-dor-five-phi.vercel.app";
 
-function normalizeURL(value: string | undefined): string {
-  const url = value?.trim().replace(/\/+$/, "");
+function getBaseURL(): string {
+  const configuredURL =
+    process.env.BETTER_AUTH_URL?.trim();
 
-  if (!url) {
+  if (!configuredURL) {
     return process.env.NODE_ENV === "production"
       ? PRODUCTION_URL
-      : "http://localhost:3000";
+      : LOCAL_URL;
   }
 
-  try {
-    const parsed = new URL(url);
+  const parsed = new URL(configuredURL);
 
-    if (
-      parsed.protocol !== "https:" &&
-      parsed.protocol !== "http:"
-    ) {
-      throw new Error("Unsupported URL protocol");
-    }
-
-    return parsed.origin;
-  } catch {
+  if (
+    parsed.protocol !== "http:" &&
+    parsed.protocol !== "https:"
+  ) {
     throw new Error(
-      "Invalid BETTER_AUTH_URL. Use a complete URL, such as https://bazar-dor-five-phi.vercel.app"
+      "BETTER_AUTH_URL must use HTTP or HTTPS."
     );
   }
+
+  return parsed.origin;
 }
 
-const baseURL = normalizeURL(
-  process.env.BETTER_AUTH_URL
-);
+const baseURL = getBaseURL();
 
-// ============================================
-// ENVIRONMENT VARIABLES
-// ============================================
+const secret = process.env.BETTER_AUTH_SECRET;
 
-const authSecret =
-  process.env.BETTER_AUTH_SECRET?.trim();
+if (!secret || secret.length < 32) {
+  throw new Error(
+    "BETTER_AUTH_SECRET must contain at least 32 characters."
+  );
+}
 
 const googleClientId =
   process.env.GOOGLE_CLIENT_ID?.trim();
@@ -60,56 +54,30 @@ const githubClientId =
 const githubClientSecret =
   process.env.GITHUB_CLIENT_SECRET?.trim();
 
-// ============================================
-// OAUTH CREDENTIAL VALIDATION
-// ============================================
+const googleConfigured =
+  Boolean(googleClientId && googleClientSecret);
 
-function hasValidCredentials(
-  clientId: string | undefined,
-  clientSecret: string | undefined
-): boolean {
-  return Boolean(
-    clientId &&
-      clientSecret &&
-      !clientId.startsWith("YOUR_") &&
-      !clientSecret.startsWith("YOUR_")
+const githubConfigured =
+  Boolean(githubClientId && githubClientSecret);
+
+if (!googleConfigured) {
+  console.warn(
+    "[Better Auth] Google OAuth credentials are missing."
   );
 }
 
-const googleEnabled = hasValidCredentials(
-  googleClientId,
-  googleClientSecret
-);
-
-const githubEnabled = hasValidCredentials(
-  githubClientId,
-  githubClientSecret
-);
-
-// ============================================
-// TRUSTED ORIGINS
-// ============================================
-
-const trustedOrigins = [
-  "http://localhost:3000",
-  PRODUCTION_URL,
-  baseURL,
-
-  // Only preview deployments belonging to
-  // this specific Vercel project/team.
-  "https://*-diprorahman01s-projects.vercel.app",
-];
-
-// ============================================
-// BETTER AUTH
-// ============================================
+if (!githubConfigured) {
+  console.warn(
+    "[Better Auth] GitHub OAuth credentials are missing."
+  );
+}
 
 export const auth = betterAuth({
   appName: "BazarDor",
 
   baseURL,
 
-  secret: authSecret,
+  secret,
 
   database: mongodbAdapter(db),
 
@@ -121,7 +89,7 @@ export const auth = betterAuth({
   },
 
   socialProviders: {
-    ...(googleEnabled
+    ...(googleConfigured
       ? {
           google: {
             clientId: googleClientId!,
@@ -130,7 +98,7 @@ export const auth = betterAuth({
         }
       : {}),
 
-    ...(githubEnabled
+    ...(githubConfigured
       ? {
           github: {
             clientId: githubClientId!,
@@ -141,5 +109,9 @@ export const auth = betterAuth({
       : {}),
   },
 
-  trustedOrigins,
+  trustedOrigins: [
+    LOCAL_URL,
+    PRODUCTION_URL,
+    baseURL,
+  ],
 });

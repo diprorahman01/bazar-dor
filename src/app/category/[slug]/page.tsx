@@ -6,8 +6,7 @@ import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import ProductImage from "@/components/ui/ProductImage";
 
-const API =
-  "https://api.api-store.workers.dev/api/bazardor";
+const API = "/api/bazardor";
 
 type Product = {
   id: string;
@@ -27,10 +26,6 @@ type CategoryInfo = {
   aliases: string[];
   keywords: string[];
 };
-
-// ============================================
-// CATEGORY CONFIGURATION
-// ============================================
 
 const categoryInfo: Record<string, CategoryInfo> = {
   chal: {
@@ -127,10 +122,6 @@ const categoryInfo: Record<string, CategoryInfo> = {
     ],
   },
 
-  // IMPORTANT:
-  // The canonical slug is "mangsho",
-  // matching your existing Navbar URL.
-
   mangsho: {
     name: "মাংস",
     icon: "🍗",
@@ -209,30 +200,20 @@ const categoryInfo: Record<string, CategoryInfo> = {
   },
 };
 
-// ============================================
-// CATEGORY URL ALIASES
-// ============================================
-
 const categorySlugAliases: Record<string, string> = {
   rice: "chal",
   daal: "dal",
   lentil: "dal",
   pulses: "dal",
-
   oil: "tel",
   "edible-oil": "tel",
-
   vegetable: "sobji",
   vegetables: "sobji",
-
   fish: "mach",
   seafood: "mach",
-
-  // FIX: Both spellings now work.
   mangso: "mangsho",
   mangsh: "mangsho",
   meat: "mangsho",
-
   dim_dudh: "dim-dudh",
   "egg-milk": "dim-dudh",
   "egg-milk-dairy": "dim-dudh",
@@ -241,17 +222,12 @@ const categorySlugAliases: Record<string, string> = {
   egg: "dim-dudh",
   dairy: "dim-dudh",
   milk: "dim-dudh",
-
   mosla: "moshla",
   mashla: "moshla",
   masala: "moshla",
   spice: "moshla",
   spices: "moshla",
 };
-
-// ============================================
-// API HELPERS
-// ============================================
 
 function obj(value: unknown): Record<string, unknown> {
   return value !== null &&
@@ -296,10 +272,6 @@ function bn(value: number): string {
   }).format(value);
 }
 
-// ============================================
-// NORMALIZE API PRODUCT
-// ============================================
-
 function normalizeProduct(value: unknown): Product | null {
   const p = obj(value);
   const changeData = obj(p.change);
@@ -318,9 +290,13 @@ function normalizeProduct(value: unknown): Product | null {
   const today =
     num(p.today) ??
     num(p.currentPrice) ??
+    num(p.current_price) ??
     num(p.price);
 
-  const yesterday = num(p.yesterday);
+  const yesterday =
+    num(p.yesterday) ??
+    num(p.previousPrice) ??
+    num(p.previous_price);
 
   let change =
     num(changeData.pct) ??
@@ -338,6 +314,7 @@ function normalizeProduct(value: unknown): Product | null {
 
   const direction = (
     str(changeData.dir) ||
+    str(changeData.direction) ||
     str(p.direction)
   ).toLowerCase();
 
@@ -412,10 +389,6 @@ function extractProducts(payload: unknown): Product[] {
     );
 }
 
-// ============================================
-// CATEGORY MATCHING
-// ============================================
-
 function normalizeText(value: string): string {
   return value
     .trim()
@@ -435,7 +408,6 @@ function matchesCategory(
 
   const productName = normalizeText(product.name);
 
-  // Match the category supplied by the API.
   if (
     category.aliases.some(
       (alias) =>
@@ -445,8 +417,6 @@ function matchesCategory(
     return true;
   }
 
-  // Do not put products from another recognized
-  // category into this category.
   const belongsToAnotherCategory = Object.values(
     categoryInfo
   ).some((otherCategory) =>
@@ -460,15 +430,10 @@ function matchesCategory(
     return false;
   }
 
-  // Fallback: match by product name.
   return category.keywords.some((keyword) =>
     productName.includes(normalizeText(keyword))
   );
 }
-
-// ============================================
-// PRICE CHANGE BADGE
-// ============================================
 
 function ChangeBadge({
   change,
@@ -498,10 +463,6 @@ function ChangeBadge({
     </span>
   );
 }
-
-// ============================================
-// LOADING SKELETON
-// ============================================
 
 function CategorySkeleton() {
   return (
@@ -534,10 +495,6 @@ function CategorySkeleton() {
   );
 }
 
-// ============================================
-// CATEGORY PAGE
-// ============================================
-
 export default function CategoryPage() {
   const params = useParams();
 
@@ -558,17 +515,12 @@ export default function CategoryPage() {
     useState<SortOption>("default");
 
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
-
-  // ==========================================
-  // FETCH PRODUCTS
-  // ==========================================
 
   useEffect(() => {
     if (!category) return;
 
-    let active = true;
+    const controller = new AbortController();
 
     async function load() {
       setLoading(true);
@@ -580,7 +532,12 @@ export default function CategoryPage() {
         const response = await fetch(
           `${API}/products`,
           {
+            method: "GET",
             cache: "no-store",
+            signal: controller.signal,
+            headers: {
+              Accept: "application/json",
+            },
           }
         );
 
@@ -604,22 +561,22 @@ export default function CategoryPage() {
           matchesCategory(product, category)
         );
 
-        if (active) {
+        if (!controller.signal.aborted) {
           setProducts(filtered);
         }
       } catch (err) {
+        if (controller.signal.aborted) return;
+
         console.error(
           "Category products error:",
           err
         );
 
-        if (active) {
-          setError(
-            "পণ্যের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।"
-          );
-        }
+        setError(
+          "পণ্যের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।"
+        );
       } finally {
-        if (active) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       }
@@ -628,13 +585,9 @@ export default function CategoryPage() {
     void load();
 
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [category]);
-
-  // ==========================================
-  // SORT PRODUCTS
-  // ==========================================
 
   const sortedProducts = useMemo(() => {
     const items = [...products];
@@ -653,17 +606,9 @@ export default function CategoryPage() {
     });
   }, [products, sort]);
 
-  // ==========================================
-  // INVALID CATEGORY = 404
-  // ==========================================
-
   if (!category) {
     notFound();
   }
-
-  // ==========================================
-  // RENDER CATEGORY PAGE
-  // ==========================================
 
   return (
     <main className="min-h-[calc(100vh-200px)] bg-[#F0F5F1] px-4 pb-24 pt-6 sm:pt-7">
@@ -789,9 +734,7 @@ export default function CategoryPage() {
                       </h2>
 
                       <p className="text-xs text-[#6E7A70]">
-                        {product.unit.startsWith(
-                          "প্রতি"
-                        )
+                        {product.unit.startsWith("প্রতি")
                           ? product.unit
                           : `প্রতি ${product.unit}`}
                       </p>

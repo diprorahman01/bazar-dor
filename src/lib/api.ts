@@ -1,9 +1,14 @@
 
 import type { Product } from "@/types/product";
 
-const BASE_URL =
+const DEFAULT_API_BASE =
+  "https://openapi.programming-hero.com/api/bazardor";
+
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_BAZARDOR_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://api.api-store.workers.dev/api/bazardor";
+  DEFAULT_API_BASE
+).replace(/\/+$/, "");
 
 type DataObject = Record<string, unknown>;
 
@@ -166,6 +171,7 @@ function getMarketPrices(
         "currentPrice",
         "today_price",
         "todayPrice",
+        "today",
         "average",
         "avg",
       ]);
@@ -201,8 +207,8 @@ function normalizeProduct(
   const name =
     getText(
       findField(item, [
-        "name_bn",
         "nameBn",
+        "name_bn",
         "nameBangla",
         "name",
         "title",
@@ -220,6 +226,7 @@ function normalizeProduct(
   const category = isObject(rawCategory)
     ? getText(
         findField(rawCategory, [
+          "nameBn",
           "name_bn",
           "name",
           "slug",
@@ -245,6 +252,7 @@ function normalizeProduct(
   const marketPrices = getMarketPrices(item);
 
   let price = getNumericField(item, [
+    "today",
     "current_price",
     "currentPrice",
     "today_price",
@@ -276,6 +284,7 @@ function normalizeProduct(
 
   const previousPrice =
     getNumericField(item, [
+      "yesterday",
       "previous_price",
       "previousPrice",
       "yesterday_price",
@@ -311,23 +320,7 @@ function normalizeProduct(
     "priceChange",
   ]);
 
-  if (change === null) {
-    if (isObject(rawChange)) {
-      change = getNumericField(rawChange, [
-        "percent",
-        "percentage",
-        "percentChange",
-        "changePercent",
-      ]);
-    } else if (
-      typeof rawChange === "string" &&
-      rawChange.includes("%")
-    ) {
-      change = getNumber(rawChange);
-    }
-  }
-
-  const direction = getText(
+  let direction = getText(
     findField(item, [
       "direction",
       "trend",
@@ -336,6 +329,36 @@ function normalizeProduct(
     ])
   ).toLowerCase();
 
+  if (isObject(rawChange)) {
+    if (change === null) {
+      change = getNumericField(rawChange, [
+        "pct",
+        "percent",
+        "percentage",
+        "percentChange",
+        "changePercent",
+      ]);
+    }
+
+    const nestedDirection = getText(
+      findField(rawChange, [
+        "dir",
+        "direction",
+        "trend",
+      ])
+    ).toLowerCase();
+
+    if (nestedDirection) {
+      direction = nestedDirection;
+    }
+  } else if (
+    change === null &&
+    typeof rawChange === "string" &&
+    rawChange.includes("%")
+  ) {
+    change = getNumber(rawChange);
+  }
+
   if (change !== null) {
     if (
       ["down", "decrease", "fall", "decreased"].includes(
@@ -343,14 +366,16 @@ function normalizeProduct(
       )
     ) {
       change = -Math.abs(change);
-    }
-
-    if (
+    } else if (
       ["up", "increase", "rise", "increased"].includes(
         direction
       )
     ) {
       change = Math.abs(change);
+    } else if (
+      ["same", "unchanged", "stable"].includes(direction)
+    ) {
+      change = 0;
     }
   }
 
@@ -370,8 +395,9 @@ function normalizeProduct(
     category,
     unit,
     icon:
-      getText(findField(item, ["emoji", "icon"])) ||
-      getEmoji(name, category),
+      getText(
+        findField(item, ["emoji", "icon", "image"])
+      ) || getEmoji(name, category),
     price,
     change,
   };
@@ -379,7 +405,11 @@ function normalizeProduct(
 
 export async function getProducts(): Promise<Product[]> {
   const response = await fetch(`${BASE_URL}/products`, {
+    method: "GET",
     cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
   });
 
   if (!response.ok) {

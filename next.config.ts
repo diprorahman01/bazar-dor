@@ -1,7 +1,8 @@
+
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Existing Tailwind and Turbopack configuration
   turbopack: {
     rules: {
       "*.css": {
@@ -9,6 +10,17 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+
+  // BazarDor API proxy configuration
+  async rewrites() {
+    return [
+      {
+        source: "/api/bazardor/:path*",
+        destination:
+          "https://openapi.programming-hero.com/api/bazardor/:path*",
+      },
+    ];
   },
 };
 
